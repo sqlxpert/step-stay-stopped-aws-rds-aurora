@@ -2,11 +2,135 @@
 
 _Keep AWS databases stopped when not needed, with a Step Function_
 
-**Unsupported and experimental**
+## Purpose
 
-For the supported version, which uses an AWS Lambda function instead of an AWS
-Step Function, see
-[github.com/sqlxpert/stay-stopped-aws-rds-aurora](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora#stay-stopped-rds-and-aurora)&nbsp;...
+This is a zero-code, AWS Step Function-based version of
+[github.com/sqlxpert/stay-stopped-aws-rds-aurora](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora#stay-stopped-rds-and-aurora)&nbsp;.
+
+Both variants use the same algorithm to reliably stop RDS and Aurora databases
+that AWS has automatically started after the 7-day maximum stop period.
+
+**This variant as unsupported and experimental.** Please use the other one in
+production, because it is fully tested, thoroughly documented, and actively
+supported.
+
+### Step Function Advantages
+
+It's a miracle that 200 lines of JSON can replace 333 lines of Python. The Step
+Function solution to the problem of stopping databases contains _no executable
+code_; it is entirely declarative. It relies on:
+
+|Step Function Solution|Original Solution|
+|:---|:---|
+|[RDS-EVENT-0153](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_Events.Messages.html#RDS-EVENT-0153) (Aurora database cluster) and<br/>[RDS-EVENT-0154](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Events.Messages.html#RDS-EVENT-0154) (RDS database instance)|Same events|
+|[EventBridge rules](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-rules.html) targeting the Step Function|Same rules, but targeting an SQS queue<br/>which feeds an AWS Lambda function|
+|[JSONata query expressions](https://docs.jsonata.org/simple) to transform events<br/>into AWS API method parameters|Python dict references; imperative|
+|[JSONata date/time functions](https://docs.jsonata.org/date-time-functions) to check for expired events|Python datetime module; imperative|
+|[Step Function-AWS SDK integration](https://docs.aws.amazon.com/step-functions/latest/dg/supported-services-awssdk.html)|[boto3 (AWS Python SDK) RDS client](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds.html)|
+|[StopDBCluster](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_StopDBCluster.html), or<br/>[StopDBInstance](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_StopDBInstance.html) then [DescribeDBInstances](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBInstances.html)|Same AWS API methods: [stop_db_cluster](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds/client/stop_db_cluster.html), or<br/>[stop_db_instance](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds/client/stop_db_instance.html) then [describe_db_instances](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds/client/describe_db_instances.html)|
+|[JSONata regular expressions](https://docs.jsonata.org/regex) to extract status<br/>from the `Rds.InvalidDBClusterState` error message|Python re module,<br/>used on the `InvalidDBClusterStateFault` error message|
+|[Choice states](https://docs.aws.amazon.com/step-functions/latest/dg/state-choice.html), and [task states](https://docs.aws.amazon.com/step-functions/latest/dg/state-task.html) with `Next`|[Python control flow statements](https://docs.python.org/3/tutorial/controlflow.html#more-control-flow-tools)|
+|[Error catchers](https://docs.aws.amazon.com/step-functions/latest/dg/concepts-error-handling.html#error-handling-fallback-states) on task states|[Python try...except](https://docs.python.org/3/tutorial/errors.html#handling-exceptions)|
+|[Wait state](https://docs.aws.amazon.com/step-functions/latest/dg/state-wait.html)|[SQS queue message [in]visibility timeout](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html)|
+|[Overall state machine timeout](https://docs.aws.amazon.com/step-functions/latest/dg/statemachine-structure.html#statemachinetimeoutseconds)|SQS queue message [in]visibility timeout<br/>&times; [maxReceiveCount](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html#policies-for-dead-letter-queues)|
+
+### Step Function Disadvantages
+
+#### 1. Inconsistent error names
+
+These inconsistencies are bugs waiting to happen. For example, the key
+StopDBInstance error has 3 different names:
+
+  1. boto3 (AWS Python SDK) exception name:
+     [`InvalidDBInstanceStateFault`](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds/client/stop_db_instance.html)
+  2. boto3
+     [ClientError](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/error-handling.html#parsing-error-responses-and-catching-exceptions-from-aws-services)
+     code: `InvalidDBInstanceState`. This matches the
+     [API error](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_StopDBInstance.html#API_StopDBInstance_Errors).
+  3. Step Functions error name: `Rds.InvalidDbInstanceStateException`.
+     There is even a special note about the `Exception` suffix in
+     [Using AWS SDK service integrations](https://docs.aws.amazon.com/step-functions/latest/dg/supported-services-awssdk.html#use-awssdk-integ)!
+
+Another the StopDBInstance error, whose boto3 ClientError code is
+`InvalidParameterCombination`, becomes `Rds.RdsException` in Step Functions.
+
+#### 2. Rudimentary retries
+
+This limitation stems from the need to list every potential error in the
+`ErrorEquals` field of
+[Step Functions retriers](https://docs.aws.amazon.com/step-functions/latest/dg/concepts-error-handling.html#error-handling-retrying-after-an-error).
+
+[A single boto3 configuration parameter enables automatic retries](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/retries.html#standard-retry-mode)
+in response to 18 different exceptions and 4 general HTTP status codes.
+
+Trial and error would be the only way to find the exact names of the 26
+errors in the Step Functions service, because there is no comprehensive
+document. After you had found the 26 names, you would have to repeat all 26 in
+every Step Function task state that makes an AWS API request.
+
+Thankfully, stopping an RDS or Aurora database is a watch-and-wait operation.
+Retries with long pauses in between make it unnecessary to match boto3's
+diligent retry logic.
+
+#### 3. Limited logging
+
+Logs ought to be very quiet, if the fable
+[The Boy Who Cried Wolf](https://en.wikipedia.org/wiki/The_Boy_Who_Cried_Wolf),
+the saying "All emphasis is no emphasis",
+and the [Three Mile Island nuclear accident](https://en.wikipedia.org/wiki/Three_Mile_Island_accident) are any guide.
+
+> The computer printer registering alarms was running more than 2&frac12; hours
+behind the events and at one point jammed, thereby losing valuable information.
+
+<details>
+  <summary>References...</summary>
+
+- The quote appeared on Page 30 (as originally numbered) of the _Report of the
+President's Commission on the Accident at Three Miles Island_.
+- Direct link:
+  [archive.org](https://archive.org/details/three-mile-island-report/page/30/mode/1up)
+- Backup-up source:
+  [US Department of Energy Office of Scientific and Technical Information](https://www.osti.gov/biblio/6986994)
+  (2&frac12; hours was mis-scanned as "2-k hours", an error that has been
+  repeated as "2000 hours" in at least one book. 2&frac12;-hours was bad, but
+  the backlog was not 83 days!)
+
+</details>
+
+It takes extra programming work to respect log levels. When something goes
+wrong, context information normally logged at a broad level like `INFO` has to
+be re-logged at a specific level like `ERROR`, or it will be lost.
+[Log levels for Step Functions execution events](https://docs.aws.amazon.com/step-functions/latest/dg/cw-logs.html#cloudwatch-log-level)
+are limited to `ALL`, `ERROR`, `FATAL`, and `OFF` (in order from most broad to
+most specific). Setting the level to `ALL` is the only way to be _certain_ that
+all context information will be available.
+
+There's an additional problem with RDS and Aurora. StopDBCluster and
+StopDBInstance are not idempotent. It is normal to call multiple times and
+receive InvalidDBCluster and InvalidDBInstanceState errors before a database
+enters the `available` status and is ready to be stopped, as well as while it
+is in the `stopping` status. In Python, I can choose to log expected exceptions
+at the `INFO` level rather than the `ERROR` level; you can ignore them. Step
+Functions treats any exception as an `ERROR`.
+
+#### 4. Cluttered diagrams
+
+Reliably re-stopping an RDS or Aurora database &mdash; that is, avoiding
+[race conditions](https://en.wikipedia.org/wiki/Race_condition)
+that might leave it running unexpectedly and waste money &mdash; is a complex
+process. State machine diagrams generated automatically by the Step Functions
+service have excessive cross-overs, and cannot be edited manually. The
+automatic diagrams are fine for the simplest processes, but their explanatory
+value falls off as soon as you add error-handling and other decision-making
+logic to your state machine.
+
+Compare:
+
+[<img src="media/step-stay-stopped-aws-rds-aurora-automatic-thumb.png" alt="" width="325" />](media/step-stay-stopped-aws-rds-aurora-automatic.png?raw=true "Automatic state machine diagram for Step-Stay Stopped, RDS and Aurora!")
+
+[<img src="media/stay-stopped-aws-rds-aurora-architecture-and-flow-thumb.png" alt="Relational Database Service Event Bridge events '0153' and '0154' (database started after exceeding 7-day maximum stop time) go to the main Simple Queue Service queue. The Amazon Web Services Lambda function stops the RDS instance or the Aurora cluster. If the database's status is invalid, the queue message becomes visible again in 9 minutes. A final status of 'stopping', 'deleting' or 'deleted' ends retries, as does an error status. After 160 tries (24 hours), the message goes to the error (dead letter) SQS queue." height="144" />](media/stay-stopped-aws-rds-aurora-architecture-and-flow.png?raw=true "Architecture diagram and flowchart for Stay Stopped, RDS and Aurora!")
+
+### Step Functions Wins!
 
 ## Get Started
 

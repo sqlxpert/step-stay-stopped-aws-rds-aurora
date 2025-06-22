@@ -32,13 +32,11 @@ Parameters:
     Type: String
     Description: >-
       Whether to monitor after requesting that a database be stopped. The
-      default, "true", provides an ERROR-level log entry or an error (dead
-      letter) queue message if the stop request is not complete
-      StepFnTimeoutSecs * StepFnWaitSecs (defaults of 160
-      times and 540 seconds or 9 minutes give 24 hours) after AWS started the
-      database. If someone starts the database manually after it enters
-      "stopped" status but before the next and final retry, the database will
-      be stopped another time. This window lasts StepFnWaitSecs
+      default, "true", provides a log entry if the stop request is not complete
+      StepFnTimeoutSeconds (86400 seconds or 24 hours, by default) after AWS
+      started the database. If someone starts the database manually after it
+      enters "stopped" status but before the next and final retry, the database
+      will be stopped another time. This window lasts StepFnWaitSeconds
       (540 seconds or 9 minutes, by default) and occurs every 7th day, but at
       an unpredictable time of day. Changing the value to "false" eliminates
       the conflict window, at the expense of the completion monitoring.
@@ -57,13 +55,10 @@ Parameters:
     Type: String
     Description: >-
       Whether to add Aurora database cluster and RDS database instance
-      non-forced start events for temporary testing, and relax the queue
-      policy for the main SQS queue so that users can send, read, and delete
-      messages, for example, using the AWS Console or the AWS ClI.
+      non-forced start events for temporary testing.
       Tip:
-      Temporarily reducing StepFnWaitSecs and
-      StepFnTimeoutSecs , and changing LogLevel to "INFO", also facilitates
-      testing.
+      Temporarily reducing StepFnWaitSeconds and StepFnTimeoutSeconds , and
+      changing LogLevel to "ALL", also facilitates testing.
       WARNING:
       Setting this to "true" causes any Aurora database cluster or RDS
       database instance to be stopped as soon as it is started.
@@ -73,17 +68,17 @@ Parameters:
       - "false"
       - "true"
 
-  ErrorQueueMessageRetentionPeriodSecs:
+  MessageRetentionPeriodSeconds:
     Type: Number
     Description: >-
       How many seconds to keep error queue messages. For consistency, set this
       to LogRetentionInDays * 86400 or the next largest value allowed by both
-      CloudWatch Logs and Simple Queue Service. The default, 1209600 , is 14
-      days. See MessageRetentionPeriod in
+      CloudWatch Logs and SQS. The default, 1209600 , is 14 days. See
+      MessageRetentionPeriod in
       https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_SetQueueAttributes.html#API_SetQueueAttributes_RequestParameters
     Default: 1209600
 
-  ErrorQueueMessageBytesMax:
+  MaximumMessageSizeBytes:
     Type: Number
     Description: >-
       The maximum number of bytes in a forced database start event and an AWS
@@ -124,7 +119,7 @@ Parameters:
       Policies are account-wide, not regional.
     Default: ""
 
-  StepFnTaskTimeoutSecs:
+  StepFnTaskTimeoutSeconds:
     Type: Number
     Description: >-
       How many seconds to wait for an AWS request, such as a StopDBCluster
@@ -132,7 +127,7 @@ Parameters:
       this only in case of time-out errors.
     Default: 30
 
-  StepFnWaitSecs:
+  StepFnWaitSeconds:
     Type: Number
     Description: >-
       How many seconds between attempts to stop a database. The default, 540
@@ -141,13 +136,31 @@ Parameters:
       Reduce for for testing.
     Default: 540
 
-  StepFnTimeoutSecs:
+  StepFnTimeoutSeconds:
     Type: Number
     Description: >-
       For how many seconds to keep trying to stop a database. The default,
       86400 , is 24 hours.
       Reduce for for testing.
     Default: 86400
+
+  StepFnKmsKey:
+    Type: String
+    Description: >-
+      If this is blank, AWS Step Functions encrypts payload data with an
+      AWS-owned KMS key . To use a custom key, specify "ACCOUNT:key/KEY_ID".
+      Whether the custom key is a single-region key, a multi-region key
+      primary, or a multi-region key replica, it must be in the same region
+      where you are creating this stack. Even if the custom key is in the same
+      AWS account as this stack, you must update the key policy to allow usage
+      by AWS Step Functions. See
+      https://docs.aws.amazon.com/step-functions/latest/dg/encryption-at-rest.html#encrypt-logs
+      and
+      https://docs.aws.amazon.com/step-functions/latest/dg/encryption-at-rest.html#create-state-machine
+      . For a StackSet, the custom key must be multi-region ("mrk-" prefix in
+      the KEY_ID), and a replica (or the primary key itself) must exist in
+      every target region.
+    Default: ""
 
   LogRetentionInDays:
     Type: Number
@@ -158,6 +171,15 @@ Parameters:
       start events. See retentionInDays in
       https://docs.aws.amazon.com/AmazonCloudWatchLogs/latest/APIReference/API_PutRetentionPolicy.html#API_PutRetentionPolicy_RequestParameters
     Default: 14
+
+  IncludeExecutionDataInLog:
+    Type: String
+    Description: >-
+      Whether to log Step Function execution data
+    Default: "true"
+    AllowedValues:
+      - "false"
+      - "true"
 
   LogLevel:
     Type: String
@@ -213,20 +235,22 @@ Metadata:
       - Label:
           default: SQS queue for errors
         Parameters:
-          - ErrorQueueMessageRetentionPeriodSecs
-          - ErrorQueueMessageBytesMax
+          - MessageRetentionPeriodSeconds
+          - MaximumMessageSizeBytes
           - SqsKmsKey
       - Label:
           default: AWS Step Function to stop databases
         Parameters:
           - StepFnRoleAttachLocalPolicyName
-          - StepFnTaskTimeoutSecs
-          - StepFnWaitSecs
-          - StepFnTimeoutSecs
+          - StepFnTaskTimeoutSeconds
+          - StepFnWaitSeconds
+          - StepFnTimeoutSeconds
+          - StepFnKmsKey
       - Label:
           default: CloudWatch log for AWS Step Function
         Parameters:
           - LogRetentionInDays
+          - IncludeExecutionDataInLog
           - LogLevel
           - CloudWatchLogsKmsKey
     ParameterLabels:
@@ -242,22 +266,26 @@ Metadata:
         default: Do not change the parameters below, unless necessary!
       Test:
         default: Test mode?
-      ErrorQueueMessageRetentionPeriodSecs:
+      MessageRetentionPeriodSeconds:
         default: Seconds before deleting a message
-      ErrorQueueMessageBytesMax:
+      MaximumMessageSizeBytes:
         default: Maximum bytes in a message
       SqsKmsKey:
         default: KMS encryption key
       StepFnRoleAttachLocalPolicyName:
         default: Name of local IAM policy to attach to role
-      StepFnTaskTimeoutSecs:
+      StepFnTaskTimeoutSeconds:
         default: Maximum seconds for an AWS request
-      StepFnWaitSecs:
+      StepFnWaitSeconds:
         default: Seconds between attempts to stop a database
-      StepFnTimeoutSecs:
+      StepFnTimeoutSeconds:
         default: Maximum seconds to try stopping a database
+      StepFnKmsKey:
+        default: KMS encryption key
       LogRetentionInDays:
         default: Days before deleting
+      IncludeExecutionDataInLog:
+        default: Include Step Function execution data?
       LogLevel:
         default: Level of detail
       CloudWatchLogsKmsKey:
@@ -266,8 +294,6 @@ Metadata:
 Conditions:
 
   EnableTrue: !Equals [ !Ref Enable, "true" ]
-
-  FollowUntilStoppedTrue: !Equals [ !Ref FollowUntilStopped, "true" ]
 
   TestTrue: !Equals [ !Ref Test, "true" ]
 
@@ -280,10 +306,11 @@ Conditions:
   StepFnRoleAttachLocalPolicyNameBlank:
     !Equals [ !Ref StepFnRoleAttachLocalPolicyName, "" ]
 
+  StepFnKmsKeyBlank: !Equals [ !Ref StepFnKmsKey, "" ]
+
   CloudWatchLogsKmsKeyBlank: !Equals [ !Ref CloudWatchLogsKmsKey, "" ]
 
 Resources:
-
 
   # Administrator: Block other AWS Step Function execution mechanisms.
   ExecuteStepFnRole:
@@ -332,7 +359,7 @@ Resources:
         Version: "2012-10-17"
         Statement:
           - Effect: Allow
-            Principal: { Service: !Sub "states.${AWS::Region}.amazonaws.com" }
+            Principal: { Service: states.amazonaws.com }
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - Fn::If:
@@ -418,20 +445,42 @@ Resources:
                   - !Sub "arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:db:*"
                   - !Sub "arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:cluster:*"
 
-        # - Fn::If:
-        #     - SqsKmsKeyCustom
-        #     - PolicyName: SqsKmsDecryptNoteComplementsQueuePolicy
-        #       PolicyDocument:
-        #         Version: "2012-10-17"
-        #         Statement:
-        #           - Effect: Allow
-        #             Action:
-        #               # https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-key-management.html#receive-from-encrypted-queue
-        #               - kms:Decrypt
-        #             Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${SqsKmsKey}"
-        #             Condition:
-        #               StringEquals: { "kms:ViaService": !Sub "sqs.${AWS::Region}.amazonaws.com" }
-        #     - !Ref AWS::NoValue
+        - Fn::If:
+            - StepFnKmsKeyBlank
+            - !Ref AWS::NoValue
+            - PolicyName: StepFnCloudWatchLogsKmsEncryptNoteComplementsQueuePolicy
+              PolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                  - Effect: Allow
+                    Action:
+                      # https://docs.aws.amazon.com/step-functions/latest/dg/encryption-at-rest.html#encrypt-logs
+                      - kms:GenerateDataKey
+                    Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${StepFnKmsKey}"
+                    Condition:
+                      StringEquals:
+                        "kms:EncryptionContext:SourceArn":
+                          !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*"
+
+        - Fn::If:
+            - StepFnKmsKeyBlank
+            - !Ref AWS::NoValue
+            - PolicyName: StepFnKmsEncryptDecrypt
+              PolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                  - Effect: Allow
+                    Action:
+                      # https://docs.aws.amazon.com/step-functions/latest/dg/encryption-at-rest.html#create-state-machine
+                      - kms:GenerateDataKey
+                      - kms:Decrypt
+                    Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${StepFnKmsKey}"
+                    Condition:
+                      StringEquals:
+                        "kms:EncryptionContext:aws:states:stateMachineArn":
+                          !Sub "arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${AWS::StackName}-*"
+                          # Step Function name prefix, to avoid a circular
+                          # dependency
 
   ErrorQueuePol:
     Type: AWS::SQS::QueuePolicy
@@ -588,8 +637,8 @@ Resources:
               - !Ref SqsKmsKey
       KmsDataKeyReusePeriodSeconds:
         !If [ SqsKmsKeyBlank, !Ref AWS::NoValue, 86400 ]  # seconds (24 hours)
-      MaximumMessageSize: !Ref ErrorQueueMessageBytesMax
-      MessageRetentionPeriod: !Ref ErrorQueueMessageRetentionPeriodSecs
+      MaximumMessageSize: !Ref MaximumMessageSizeBytes
+      MessageRetentionPeriod: !Ref MessageRetentionPeriodSeconds
       ReceiveMessageWaitTimeSeconds: 20  # long polling (lowest cost)
       VisibilityTimeout: 0  # seconds; dead message retries don't make sense
 
@@ -614,8 +663,8 @@ Resources:
   #             ArnLike:
   #               "aws:SourceArn":
   #                 - "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*"
-    # ${LogGroup.Arn} ends with :* instead of allowing us to
-    # append :log-stream:* to make a log stream ARN
+  # ${LogGroup.Arn} ends with :* instead of allowing us to
+  # append :log-stream:* to make a log stream ARN
 
   StepFnLogGrp:
     Type: AWS::Logs::LogGroup
@@ -630,14 +679,12 @@ Resources:
   StepFn:
     Type: AWS::StepFunctions::StateMachine
     Properties:
-      # DefinitionSubstitutions:
-      #   Key: Value
       # EncryptionConfiguration:
       #   Type: CUSTOMER_MANAGED_KMS_KEY | AWS_OWNED_KEY
       #   KmsKeyId: String
       #   KmsDataKeyReusePeriodSeconds: 900
       LoggingConfiguration:
-        IncludeExecutionData: true
+        IncludeExecutionData: !Ref IncludeExecutionDataInLog
         Level: !Ref LogLevel
         Destinations:
           - CloudWatchLogsLogGroup: { LogGroupArn: !GetAtt StepFnLogGrp.Arn }
@@ -648,14 +695,15 @@ Resources:
         {
           "Comment": "Stop AWS RDS and Aurora databases after the forced 7th-day start",
           "QueryLanguage": "JSONata",
-          "TimeoutSeconds": ${StepFnTimeoutSecs},
+          "TimeoutSeconds": ${StepFnTimeoutSeconds},
           "StartAt": "AssignConstants",
           "States": {
             "AssignConstants": {
               "Type": "Pass",
               "Assign": {
-                "TaskTimeoutSeconds": ${StepFnTaskTimeoutSecs},
-                "WaitSeconds": ${StepFnWaitSecs}
+                "TaskTimeoutSeconds": ${StepFnTaskTimeoutSeconds},
+                "WaitSeconds": ${StepFnWaitSeconds},
+                "FollowUntilStopped": "{% ('${FollowUntilStopped}' = 'true') %}"
               },
               "Next": "ParseEvent"
             },
@@ -669,7 +717,7 @@ Resources:
               "Default": "SourceTypeWord",
               "Choices": [
                 {
-                  "Condition": "{% $toMillis($states.input.Date) < ( $millis() - ${StepFnTimeoutSecs} ) %}",
+                  "Condition": "{% $toMillis($states.input.Date) < ( $millis() - ${StepFnTimeoutSeconds} ) %}",
                   "Next": "Fail"
                 }
               ]
@@ -722,7 +770,7 @@ Resources:
                 }
               ],
               "Output": "{% $states.input %}",
-              "Next": "Wait"
+              "Next": "FollowUntilStopped"
             },
             "DbClusterStatusRegExpMatch": {
               "Type": "Choice",
@@ -770,7 +818,7 @@ Resources:
                 }
               ],
               "Output": "{% $states.input %}",
-              "Next": "Wait"
+              "Next": "FollowUntilStopped"
             },
             "AuroraDbInstanceNotEligibleForStopping": {
               "Type": "Choice",
@@ -811,9 +859,23 @@ Resources:
                 {
                   "Condition": "{% $states.input.DbStatus in ['stopped', 'deleting', 'deleted'] %}",
                   "Next": "Succeed"
+                },
+                {
+                  "Condition": "{% 'stopping' = $states.input.DbStatus %}",
+                  "Next": "FollowUntilStopped"
                 }
               ],
               "Default": "Wait"
+            },
+            "FollowUntilStopped": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Condition": "{% $FollowUntilStopped %}",
+                  "Next": "Wait"
+                }
+              ],
+              "Default": "Succeed"
             },
             "Wait": {
               "Type": "Wait",

@@ -1,14 +1,15 @@
 {
   "Comment": "Stop AWS RDS and Aurora databases after the forced 7th-day start",
   "QueryLanguage": "JSONata",
-  "TimeoutSeconds": ${StepFnTimeoutSecs},
+  "TimeoutSeconds": ${StepFnTimeoutSeconds},
   "StartAt": "AssignConstants",
   "States": {
     "AssignConstants": {
       "Type": "Pass",
       "Assign": {
-        "TaskTimeoutSeconds": ${StepFnTaskTimeoutSecs},
-        "WaitSeconds": ${StepFnWaitSecs}
+        "TaskTimeoutSeconds": ${StepFnTaskTimeoutSeconds},
+        "WaitSeconds": ${StepFnWaitSeconds},
+        "FollowUntilStopped": "{% ('${FollowUntilStopped}' = 'true') %}"
       },
       "Next": "ParseEvent"
     },
@@ -22,7 +23,7 @@
       "Default": "SourceTypeWord",
       "Choices": [
         {
-          "Condition": "{% $toMillis($states.input.Date) < ( $millis() - ${StepFnTimeoutSecs} ) %}",
+          "Condition": "{% $toMillis($states.input.Date) < ( $millis() - ${StepFnTimeoutSeconds} ) %}",
           "Next": "Fail"
         }
       ]
@@ -75,7 +76,7 @@
         }
       ],
       "Output": "{% $states.input %}",
-      "Next": "Wait"
+      "Next": "FollowUntilStopped"
     },
     "DbClusterStatusRegExpMatch": {
       "Type": "Choice",
@@ -123,7 +124,7 @@
         }
       ],
       "Output": "{% $states.input %}",
-      "Next": "Wait"
+      "Next": "FollowUntilStopped"
     },
     "AuroraDbInstanceNotEligibleForStopping": {
       "Type": "Choice",
@@ -164,9 +165,23 @@
         {
           "Condition": "{% $states.input.DbStatus in ['stopped', 'deleting', 'deleted'] %}",
           "Next": "Succeed"
+        },
+        {
+          "Condition": "{% 'stopping' = $states.input.DbStatus %}",
+          "Next": "FollowUntilStopped"
         }
       ],
       "Default": "Wait"
+    },
+    "FollowUntilStopped": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Condition": "{% $FollowUntilStopped %}",
+          "Next": "Wait"
+        }
+      ],
+      "Default": "Succeed"
     },
     "Wait": {
       "Type": "Wait",

@@ -103,15 +103,14 @@ be re-logged at a specific level like `ERROR`, or it will be lost.
 [Log levels for Step Functions execution events](https://docs.aws.amazon.com/step-functions/latest/dg/cw-logs.html#cloudwatch-log-level)
 are limited to `ALL`, `ERROR`, `FATAL`, and `OFF` (in order from most broad to
 most specific). Setting the level to `ALL` is the only way to be _certain_ that
-all context information will be available.
+context information will be available.
 
 There's an additional problem with RDS and Aurora. StopDBCluster and
 StopDBInstance are not idempotent. It is normal to call multiple times and
-receive InvalidDBCluster and InvalidDBInstanceState errors before a database
-enters the `available` status and is ready to be stopped, as well as while it
-is in the `stopping` status. In Python, I can choose to log expected exceptions
-at the `INFO` level rather than the `ERROR` level; you can ignore them. Step
-Functions treats any exception as an `ERROR`.
+receive InvalidDBCluster and InvalidDBInstanceState errors, both before a
+database is `available` and while it is `stopping`. In Python, I can choose to
+log these expected exceptions at the `INFO` level rather than the `ERROR`
+level; you can ignore them. Step Functions logs any exception as an `ERROR`.
 
 #### 4. Cluttered diagrams
 
@@ -131,6 +130,19 @@ Compare:
 [<img src="media/stay-stopped-aws-rds-aurora-architecture-and-flow-thumb.png" alt="Relational Database Service Event Bridge events '0153' and '0154' (database started after exceeding 7-day maximum stop time) go to the main Simple Queue Service queue. The Amazon Web Services Lambda function stops the RDS instance or the Aurora cluster. If the database's status is invalid, the queue message becomes visible again in 9 minutes. A final status of 'stopping', 'deleting' or 'deleted' ends retries, as does an error status. After 160 tries (24 hours), the message goes to the error (dead letter) SQS queue." height="144" />](media/stay-stopped-aws-rds-aurora-architecture-and-flow.png?raw=true "Architecture diagram and flowchart for Stay Stopped, RDS and Aurora!")
 
 ### Step Functions Wins!
+
+The advantages of Step Functions far outweigh the disadvantages. If you take
+the time to understand the _semantics_ of AWS API methods and build
+appropriate error-handling logic into your state machine &mdash; in other
+words, if your solution is _correct_ &mdash; a compact, declarative solution
+with a standard, graphical representation cuts development time, simplifies
+testing, and reduces maintenance effort. Given the complexity of a correct
+solution, it's doubly important to document and explain your state machine.
+
+AWS is actively developing the Step Functions service. For example, the
+transition from JSONPath to JSONata significantly increased declarative
+capabilities. It's likely that AWS will address some of the disadvantages I
+encountered, in the future.
 
 ## Get Started
 

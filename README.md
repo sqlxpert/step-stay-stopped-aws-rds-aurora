@@ -131,13 +131,20 @@ Compare:
 
 ### Step Functions Wins!
 
-The advantages of Step Functions far outweigh the disadvantages. If you take
-the time to understand the _semantics_ of AWS API methods and build
+**The advantages of Step Functions far outweigh any disadvantages.** If you
+take the time to understand the _semantics_ of AWS API methods and build
 appropriate error-handling logic into your state machine &mdash; in other
-words, if your solution is _correct_ &mdash; a compact, declarative solution
-with a standard, graphical representation cuts development time, simplifies
-testing, and reduces maintenance effort. Given the complexity of a correct
-solution, it's doubly important to document and explain your state machine.
+words, if your solution is _correct_ &mdash; then a compact, declarative
+implementation with a standard, graphical representation cuts development
+time, simplifies testing, and reduces maintenance effort. Given the complexity
+of a correct solution, it's doubly important to document and explain your
+state machine. (This includes choosing clear and consistent state names and
+variable names. You can also front-load important information to guard against
+truncation in diagrams. For example, putting the constants first in symmetric
+Choice rule expressions means that you'll see the important, variable
+information on the arrows between states. If you name the Choice state DbStatus
+and write the expressions as `'available' = states.input.DbStatus` and
+`'stopping' = states.input.DbStatus`, the string constants won't be truncated.)
 
 AWS is actively developing the Step Functions service. For example, the
 transition from JSONPath to JSONata significantly increased declarative

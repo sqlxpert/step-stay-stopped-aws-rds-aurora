@@ -648,28 +648,29 @@ Resources:
         {
           "Comment": "Stop AWS RDS and Aurora databases after the forced 7th-day start",
           "QueryLanguage": "JSONata",
+          "TimeoutSeconds": ${StepFnTimeoutSecs},
           "StartAt": "AssignConstants",
           "States": {
             "AssignConstants": {
               "Type": "Pass",
-              "Next": "ParseEvent",
               "Assign": {
                 "TaskTimeoutSeconds": ${StepFnTaskTimeoutSecs},
                 "WaitSeconds": ${StepFnWaitSecs}
-              }
+              },
+              "Next": "ParseEvent"
             },
             "ParseEvent": {
               "Type": "Pass",
-              "Next": "Expired?",
-              "Output": "{% {\n  'Date': $states.input.detail.Date,\n  'SourceIdentifier': $states.input.detail.SourceIdentifier,\n\n  /* Events have 'CLUSTER' (Aurora) or 'DB_INSTANCE' (RDS); take last word */\n  'SourceTypeWord': $split($states.input.detail.SourceType,'_')[-1]\n} %}"
+              "Output": "{% {\n  'Date': $states.input.detail.Date,\n  'SourceIdentifier': $states.input.detail.SourceIdentifier,\n\n  /* Events have 'CLUSTER' (Aurora) or 'DB_INSTANCE' (RDS); take last word */\n  'SourceTypeWord': $split($states.input.detail.SourceType,'_')[-1]\n} %}",
+              "Next": "Expired?"
             },
             "Expired?": {
               "Type": "Choice",
               "Default": "SourceTypeWord",
               "Choices": [
                 {
-                  "Next": "Fail",
-                  "Condition": "{% $toMillis($states.input.Date) < ( $millis() - (24 * 60 * 60 * 1000) ) %}"
+                  "Condition": "{% $toMillis($states.input.Date) < ( $millis() - ${StepFnTimeoutSecs} ) %}",
+                  "Next": "Fail"
                 }
               ]
             },
@@ -677,67 +678,70 @@ Resources:
               "Type": "Choice",
               "Choices": [
                 {
-                  "Next": "StopDBCluster",
-                  "Condition": "{% 'CLUSTER' = $states.input.SourceTypeWord %}"
+                  "Condition": "{% 'CLUSTER' = $states.input.SourceTypeWord %}",
+                  "Next": "StopDBCluster"
                 },
                 {
-                  "Next": "StopDBInstance",
-                  "Condition": "{% 'INSTANCE' = $states.input.SourceTypeWord %}"
+                  "Condition": "{% 'INSTANCE' = $states.input.SourceTypeWord %}",
+                  "Next": "StopDBInstance"
                 }
               ]
             },
             "StopDBCluster": {
               "Type": "Task",
               "Resource": "arn:aws:states:::aws-sdk:rds:stopDBCluster",
-              "Next": "Wait",
+              "Arguments": {
+                "DbClusterIdentifier": "{% $states.input.SourceIdentifier %}"
+              },
+              "TimeoutSeconds": "{% $TaskTimeoutSeconds %}",
               "Catch": [
                 {
                   "ErrorEquals": [
                     "Rds.InvalidDbClusterStateException"
                   ],
-                  "Next": "DbClusterStatusRegExpMatch",
                   "Assign": {
                     "DbClusterStatusRegExpMatch": "{% $match($states.errorOutput.Cause, /^DbCluster [^ ]+ is in (.+) state/, 1) %}"
                   },
-                  "Output": "{% $states.input %}"
+                  "Output": "{% $states.input %}",
+                  "Next": "DbClusterStatusRegExpMatch"
                 },
                 {
+                  "Comment": "Until each cluster member becomes available",
                   "ErrorEquals": [
                     "Rds.InvalidDbInstanceStateException"
                   ],
-                  "Next": "Wait",
-                  "Comment": "Until each cluster member becomes available",
-                  "Output": "{% $states.input %}"
+                  "Output": "{% $states.input %}",
+                  "Next": "Wait"
                 },
                 {
                   "ErrorEquals": [
                     "States.ALL"
                   ],
-                  "Next": "Wait",
-                  "Output": "{% $states.input %}"
+                  "Output": "{% $states.input %}",
+                  "Next": "Wait"
                 }
               ],
-              "Arguments": {
-                "DbClusterIdentifier": "{% $states.input.SourceIdentifier %}"
-              },
               "Output": "{% $states.input %}",
-              "TimeoutSeconds": "{% $TaskTimeoutSeconds %}"
+              "Next": "Wait"
             },
             "DbClusterStatusRegExpMatch": {
               "Type": "Choice",
-              "Default": "DbStatus",
               "Choices": [
                 {
-                  "Next": "Wait",
-                  "Condition": "{% null = $DbClusterStatusRegExpMatch %}"
+                  "Condition": "{% null = $DbClusterStatusRegExpMatch %}",
+                  "Next": "Wait"
                 }
               ],
-              "Output": "{% $merge([$states.input, {'DbStatus': $lowercase($DbClusterStatusRegExpMatch.groups[0])}]) %}"
+              "Output": "{% $merge([$states.input, {'DbStatus': $lowercase($DbClusterStatusRegExpMatch.groups[0])}]) %}",
+              "Default": "DbStatus"
             },
             "StopDBInstance": {
               "Type": "Task",
               "Resource": "arn:aws:states:::aws-sdk:rds:stopDBInstance",
-              "Next": "Wait",
+              "Arguments": {
+                "DbInstanceIdentifier": "{% $states.input.SourceIdentifier %}"
+              },
+              "TimeoutSeconds": "{% $TaskTimeoutSeconds %}",
               "Catch": [
                 {
                   "ErrorEquals": [
@@ -761,15 +765,12 @@ Resources:
                   "ErrorEquals": [
                     "States.ALL"
                   ],
-                  "Next": "Wait",
-                  "Output": "{% $states.input %}"
+                  "Output": "{% $states.input %}",
+                  "Next": "Wait"
                 }
               ],
-              "Arguments": {
-                "DbInstanceIdentifier": "{% $states.input.SourceIdentifier %}"
-              },
               "Output": "{% $states.input %}",
-              "TimeoutSeconds": "{% $TaskTimeoutSeconds %}"
+              "Next": "Wait"
             },
             "AuroraDbInstanceNotEligibleForStopping": {
               "Type": "Choice",
@@ -784,40 +785,40 @@ Resources:
             "DescribeDBInstances": {
               "Type": "Task",
               "Resource": "arn:aws:states:::aws-sdk:rds:describeDBInstances",
-              "Next": "DbStatus",
               "Arguments": {
                 "DbInstanceIdentifier": "{% $states.input.SourceIdentifier %}"
               },
-              "Output": "{% $merge([$states.input, {'DbStatus': $states.result.DbInstances[0].DbInstanceStatus}]) %}",
+              "TimeoutSeconds": "{% $TaskTimeoutSeconds %}",
               "Catch": [
                 {
                   "ErrorEquals": [
                     "States.ALL"
                   ],
-                  "Next": "Wait",
-                  "Output": "{% $states.input %}"
+                  "Output": "{% $states.input %}",
+                  "Next": "Wait"
                 }
               ],
-              "TimeoutSeconds": "{% $TaskTimeoutSeconds %}"
+              "Output": "{% $merge([$states.input, {'DbStatus': $states.result.DbInstances[0].DbInstanceStatus}]) %}",
+              "Next": "DbStatus"
             },
             "DbStatus": {
-              "Default": "Wait",
               "Type": "Choice",
               "Choices": [
                 {
-                  "Next": "Fail",
-                  "Condition": "{% $states.input.DbStatus in ['inaccessible-encryption-credentials', 'cloning-failed', 'migration-failed', 'preparing-data-migration', 'failed', 'incompatible-restore', 'insufficient-capacity', 'restore-error', 'storage-full'] %}"
+                  "Condition": "{% $states.input.DbStatus in ['inaccessible-encryption-credentials', 'cloning-failed', 'migration-failed', 'preparing-data-migration', 'failed', 'incompatible-restore', 'insufficient-capacity', 'restore-error', 'storage-full'] %}",
+                  "Next": "Fail"
                 },
                 {
-                  "Next": "Succeed",
-                  "Condition": "{% $states.input.DbStatus in ['stopped', 'deleting', 'deleted'] %}"
+                  "Condition": "{% $states.input.DbStatus in ['stopped', 'deleting', 'deleted'] %}",
+                  "Next": "Succeed"
                 }
-              ]
+              ],
+              "Default": "Wait"
             },
             "Wait": {
-              "Next": "SourceTypeWord",
+              "Type": "Wait",
               "Seconds": "{% $WaitSeconds %}",
-              "Type": "Wait"
+              "Next": "SourceTypeWord"
             },
             "Fail": {
               "Type": "Fail"
@@ -825,6 +826,5 @@ Resources:
             "Succeed": {
               "Type": "Succeed"
             }
-          },
-          "TimeoutSeconds": ${StepFnTimeoutSecs}
+          }
         }

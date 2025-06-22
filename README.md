@@ -6,7 +6,7 @@ _Keep AWS databases stopped when not needed, with a Step Function_
 
 For the supported version, which uses an AWS Lambda function instead of an AWS
 Step Function, see
-[github.com/sqlxpert/stay-stopped-aws-rds-aurora](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora#stay-stopped-rds-and-aurora)...
+[github.com/sqlxpert/stay-stopped-aws-rds-aurora](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora#stay-stopped-rds-and-aurora)&nbsp;...
 
 ## Get Started
 
@@ -232,22 +232,6 @@ start a stopped
 > In test mode, Step-Stay-Stopped also receives
 [RDS-EVENT-0088 (Aurora database instance)](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_Events.Messages.html#RDS-EVENT-0088).
 Internally, the code ignores it in favor of the cluster-level event.
-
-### Test by Sending a Message
-
-Test mode relaxes the queue policy for the main SQS queue, allowing sources
-other than EventBridge, and targets other than the Lambda function or the
-error (dead letter) queue. Test by using the AWS Console to send a simulated
-EventBridge event message. In the list of
-[SQS queues](https://console.aws.amazon.com/sqs/v3/home#/queues),
-select `StayStoppedRdsAurora-MainQueue` and then select the "Send and receive
-messages" button above the list. You can:
-
-- "Send message", or
-- "Poll for messages", select a message, read it and delete it, or
-- "Purge" all messages.
-
-
 
 ### Test by Invoking the Step Function
 

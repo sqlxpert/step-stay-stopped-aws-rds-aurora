@@ -16,9 +16,9 @@ supported.
 
 ### Step Function Advantages
 
-It is, quite frankly, a miracle that **200 lines of declarative JSON can
-replace 333 lines of executable Python** code. Development is significantly
-faster, whether add states visually or write or edit the JSON manually.
+Quite frankly, it is a miracle that **200 lines of declarative JSON can replace
+333 lines of executable Python** code. Development is significantly faster,
+whether you add states visually or write or edit the JSON manually.
 
 Testing and debugging are moderately faster. Although a correct state machine,
 able to handle error conditions, is liable to be more complex than the

@@ -16,29 +16,27 @@ supported.
 
 ### Step Function Advantages
 
-It is, quite frankly, a miracle that 200 lines of declarative JSON can replace
-333 lines of executable Python code. Development is significantly faster,
-whether I type the JSON manually or compose a state machine visually. I found
-both mechanisms useful, for different development tasks.
+It is, quite frankly, a miracle that **200 lines of declarative JSON can
+replace 333 lines of executable Python** code. Development is significantly
+faster, whether add states visually or write or edit the JSON manually.
 
 Testing and debugging are moderately faster. Although a correct state machine,
 able to handle error conditions, is liable to be more complex than the
-initial, normal-case design (more on complexity, below), the
-automatically-generated state machine diagram becomes useful when it's marked
-up with the actual traversal from a particular execution. Similarly, the full
-log, viewed inside the Step Functions console, clearly shows data at the start
-and end of each state traversed, as well as data available for use in between,
-such as API responses.
+initial, normal-case design, even a complex state machine diagram becomes
+readable when it's marked up with the actual traversal from a particular
+execution. Similarly, the full log, viewed inside the Step Functions console,
+shows data at the start and end of each state traversed, as well as data
+available for use in between, such as API responses.
 
-Clearly, there is much less to maintain with a Step Function. Although Step
-Functions may call AWS Lambda functions, many problems can be solved without
-recourse to Lambda, so that there is no software to patch &mdash; not even a
-runtime to update every few months.
+Clearly, a Step Functions require less maintenance. Although Step Functions may
+call AWS Lambda functions, many problems can be solved without recourse to
+Lambda, so that there is no software to patch &mdash; not even a runtime to
+update every few months.
 
 Step Functions are perfect for processes that require lots of wall-clock time
 but little actual computing time, such as waiting for a database to start and
-then seeing a stop request through until the database is stopped again. In the
-standard mode, the
+then seeing a stop request through until the database is stopped again. The
+standard mode
 [price is
 25&cent; per 10,000 transitions](https://aws.amazon.com/step-functions/pricing/#AWS_Step_Functions_Standard_Workflow_State_transitions_pricing)
 (arrows traversed, on the state machine diagram). To put this in perspective,
@@ -93,7 +91,7 @@ Natural retries with long pauses in between make it unnecessary to match
 boto3's diligent retry logic, which is meant to guard a single, critical API
 request.
 
-#### 3. Limited logging
+#### 3. Limited logging control
 
 Logs ought to be very quiet, if the fable
 [The Boy Who Cried Wolf](https://en.wikipedia.org/wiki/The_Boy_Who_Cried_Wolf),
@@ -141,33 +139,21 @@ Reliably re-stopping an RDS or Aurora database &mdash; that is, avoiding
 [race conditions](https://en.wikipedia.org/wiki/Race_condition)
 that might leave it running unexpectedly and waste money &mdash; is a complex
 process. State machine diagrams generated automatically by the Step Functions
-service have excessive cross-overs, and cannot be edited manually. The
-automatic diagrams are fine for the simplest processes, but their explanatory
-value falls off as soon as you add error-handling and other decision-making
-logic to your state machine.
+service are hard to read, with excessive cross-overs, tiny print, and
+truncated labels. You cannot edit them manually. Their explanatory value falls
+off as soon as you add error-handling logic to your state machine.
 
 Compare:
 
-[<img src="media/step-stay-stopped-aws-rds-aurora-automatic-thumb.png" alt="" width="325" />](media/step-stay-stopped-aws-rds-aurora-automatic.png?raw=true "Automatic state machine diagram for Step-Stay Stopped, RDS and Aurora!")
+[<img src="media/step-stay-stopped-aws-rds-aurora-automatic-thumb.png" alt="" width="325" />](media/step-stay-stopped-aws-rds-aurora-automatic.png?raw=true "Automatic state machine diagram for Step-Stay Stopped, RDS and Aurora!") [<img src="media/stay-stopped-aws-rds-aurora-architecture-and-flow-thumb.png" alt="Relational Database Service Event Bridge events '0153' and '0154' (database started after exceeding 7-day maximum stop time) go to the main Simple Queue Service queue. The Amazon Web Services Lambda function stops the RDS instance or the Aurora cluster. If the database's status is invalid, the queue message becomes visible again in 9 minutes. A final status of 'stopping', 'deleting' or 'deleted' ends retries, as does an error status. After 160 tries (24 hours), the message goes to the error (dead letter) SQS queue." height="144" />](media/stay-stopped-aws-rds-aurora-architecture-and-flow.png?raw=true "Architecture diagram and flowchart for Stay Stopped, RDS and Aurora!")
 
-[<img src="media/stay-stopped-aws-rds-aurora-architecture-and-flow-thumb.png" alt="Relational Database Service Event Bridge events '0153' and '0154' (database started after exceeding 7-day maximum stop time) go to the main Simple Queue Service queue. The Amazon Web Services Lambda function stops the RDS instance or the Aurora cluster. If the database's status is invalid, the queue message becomes visible again in 9 minutes. A final status of 'stopping', 'deleting' or 'deleted' ends retries, as does an error status. After 160 tries (24 hours), the message goes to the error (dead letter) SQS queue." height="144" />](media/stay-stopped-aws-rds-aurora-architecture-and-flow.png?raw=true "Architecture diagram and flowchart for Stay Stopped, RDS and Aurora!")
-
-### Step Functions Wins!
+### Step Functions Win!
 
 **The advantages of Step Functions far outweigh any disadvantages.** If you
-take the time to understand the _semantics_ of AWS API methods and build
-appropriate error-handling logic into your state machine &mdash; in other
-words, if your solution is _correct_ &mdash; then a compact, declarative
-implementation with a standard, graphical representation cuts development
-time, simplifies testing, and reduces maintenance effort. Given the complexity
-of a correct solution, it's doubly important to document and explain your
-state machine. (This includes choosing clear and consistent state names and
-variable names. You can also front-load important information to guard against
-truncation in diagrams. For example, putting the constants first in symmetric
-Choice rule expressions means that you'll see the important, variable
-information on the arrows between states. If you name the Choice state DbStatus
-and write the expressions as `'available' = states.input.DbStatus` and
-`'stopping' = states.input.DbStatus`, the string constants won't be truncated.)
+take the time to understand the _semantics_ of AWS APIs and build appropriate error-handling logic into your state machine &mdash; in other words, if your
+solution is _correct_ &mdash; then a compact, declarative implementation with a
+graphical representation cuts development time, simplifies testing, and reduces
+maintenance effort.
 
 AWS is actively developing the Step Functions service. For example, the
 transition from JSONPath to JSONata significantly increased declarative

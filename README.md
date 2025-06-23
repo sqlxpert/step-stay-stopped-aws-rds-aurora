@@ -16,23 +16,45 @@ supported.
 
 ### Step Function Advantages
 
-It's a miracle that 200 lines of JSON can replace 333 lines of Python. The Step
-Function solution to the problem of stopping databases contains _no executable
-code_; it is entirely declarative. It relies on:
+It is, quite frankly, a miracle that 200 lines of declarative JSON can replace
+333 lines of executable Python code. Development is significantly faster,
+whether I type the JSON manually or compose a state machine visually. I found
+both mechanisms useful, for different development tasks.
 
-|Step Function Solution|Original Solution|
-|:---|:---|
-|[RDS-EVENT-0153](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_Events.Messages.html#RDS-EVENT-0153) (Aurora database cluster) and<br/>[RDS-EVENT-0154](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Events.Messages.html#RDS-EVENT-0154) (RDS database instance)|Same events|
-|[EventBridge rules](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-rules.html) targeting the Step Function|Same rules, but targeting an SQS queue<br/>which feeds an AWS Lambda function|
-|[JSONata query expressions](https://docs.jsonata.org/simple) to transform events<br/>into AWS API method parameters|Python dict references; imperative|
-|[JSONata date/time functions](https://docs.jsonata.org/date-time-functions) to check for expired events|Python datetime module; imperative|
-|[Step Function-AWS SDK integration](https://docs.aws.amazon.com/step-functions/latest/dg/supported-services-awssdk.html)|[boto3 (AWS Python SDK) RDS client](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds.html)|
-|[StopDBCluster](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_StopDBCluster.html), or<br/>[StopDBInstance](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_StopDBInstance.html) then [DescribeDBInstances](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBInstances.html)|Same AWS API methods: [stop_db_cluster](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds/client/stop_db_cluster.html), or<br/>[stop_db_instance](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds/client/stop_db_instance.html) then [describe_db_instances](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds/client/describe_db_instances.html)|
-|[JSONata regular expressions](https://docs.jsonata.org/regex) to extract status<br/>from the `Rds.InvalidDBClusterState` error message|Python re module,<br/>used on the `InvalidDBClusterStateFault` error message|
-|[Choice states](https://docs.aws.amazon.com/step-functions/latest/dg/state-choice.html), and [task states](https://docs.aws.amazon.com/step-functions/latest/dg/state-task.html) with `Next`|[Python control flow statements](https://docs.python.org/3/tutorial/controlflow.html#more-control-flow-tools)|
-|[Error catchers](https://docs.aws.amazon.com/step-functions/latest/dg/concepts-error-handling.html#error-handling-fallback-states) on task states|[Python try...except](https://docs.python.org/3/tutorial/errors.html#handling-exceptions)|
-|[Wait state](https://docs.aws.amazon.com/step-functions/latest/dg/state-wait.html)|[SQS queue message [in]visibility timeout](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html)|
-|[Overall state machine timeout](https://docs.aws.amazon.com/step-functions/latest/dg/statemachine-structure.html#statemachinetimeoutseconds)|SQS queue message [in]visibility timeout<br/>&times; [maxReceiveCount](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html#policies-for-dead-letter-queues)|
+Testing and debugging are moderately faster. Although a correct state machine,
+able to handle error conditions, is liable to be more complex than the
+initial, normal-case design (more on complexity, below), the
+automatically-generated state machine diagram becomes useful when it's marked
+up with the actual traversal from a particular execution. Similarly, the full
+log, viewed inside the Step Functions console, clearly shows data at the start
+and end of each state traversed, as well as data available for use in between,
+such as API responses.
+
+Clearly, there is much less to maintain with a Step Function. Although Step
+Functions may call AWS Lambda functions, many problems can be solved without
+recourse to Lambda, so that there is no software to patch &mdash; not even a
+runtime to update every few months.
+
+Step Functions are perfect for processes that require lots of wall-clock time
+but little actual computing time, such as waiting for a database to start and
+then seeing a stop request through until the database is stopped again. In the
+standard mode, the
+[price is
+25&cent; per 10,000 transitions](https://aws.amazon.com/step-functions/pricing/#AWS_Step_Functions_Standard_Workflow_State_transitions_pricing)
+(arrows traversed, on the state machine diagram). To put this in perspective,
+10 or fewer state transitions occur every 9 minutes, from the time AWS starts
+a database until it is stopped again. Prices vary by region and may change.
+
+||Step Function Solution|Lambda Solution|
+|:---|:---:|:---:|
+|Lines of code|&asymp;&nbsp;200|&asymp;&nbsp;333|
+|[EventBridge rule](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-rules.html) target|Step Function|SQS queue, to Lambda function|
+|Event and response transformation|[JSONata](https://docs.jsonata.org)|Python|
+|API calls|[AWS SDK integration](https://docs.aws.amazon.com/step-functions/latest/dg/supported-services-awssdk.html)|[boto3 RDS client](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds.html)|
+|Decisions and branching|[Choice states](https://docs.aws.amazon.com/step-functions/latest/dg/state-choice.html)|Python control flow statements|
+|Error handling|[Catchers](https://docs.aws.amazon.com/step-functions/latest/dg/concepts-error-handling.html#error-handling-fallback-states) on task states|`try`...`except`|
+|Retries|[Wait state](https://docs.aws.amazon.com/step-functions/latest/dg/state-wait.html)|[Queue message [in]visibility timeout](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html)|
+|Timeout|[State machine timeout](https://docs.aws.amazon.com/step-functions/latest/dg/statemachine-structure.html#statemachinetimeoutseconds)|[maxReceiveCount](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html#policies-for-dead-letter-queues) &times;<br/>Queue message [in]visibility timeout|
 
 ### Step Function Disadvantages
 
@@ -48,36 +70,37 @@ StopDBInstance error has 3 different names:
      code: `InvalidDBInstanceState`. This matches the
      [API error](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_StopDBInstance.html#API_StopDBInstance_Errors).
   3. Step Functions error name: `Rds.InvalidDbInstanceStateException`.
-     There is even a special note about the `Exception` suffix in
-     [Using AWS SDK service integrations](https://docs.aws.amazon.com/step-functions/latest/dg/supported-services-awssdk.html#use-awssdk-integ)!
+     There is even a
+     [special note about the Exception suffix](https://docs.aws.amazon.com/step-functions/latest/dg/supported-services-awssdk.html#use-awssdk-integ)!
 
 Another the StopDBInstance error, whose boto3 ClientError code is
 `InvalidParameterCombination`, becomes `Rds.RdsException` in Step Functions.
 
 #### 2. Rudimentary retries
 
-This limitation stems from the need to list every potential error in the
-`ErrorEquals` field of
-[Step Functions retriers](https://docs.aws.amazon.com/step-functions/latest/dg/concepts-error-handling.html#error-handling-retrying-after-an-error).
-
 [A single boto3 configuration parameter enables automatic retries](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/retries.html#standard-retry-mode)
 in response to 18 different exceptions and 4 general HTTP status codes.
 
-Trial and error would be the only way to find the exact names of the 26
-errors in the Step Functions service, because there is no comprehensive
-document. After you had found the 26 names, you would have to repeat all 26 in
-every Step Function task state that makes an AWS API request.
+You would have to experiment to discover the Step Function service's name for
+each of the 26 error conditions (there is no comprehensive document), list all
+26 in the `ErrorEquals` field of
+[retrier](https://docs.aws.amazon.com/step-functions/latest/dg/concepts-error-handling.html#error-handling-retrying-after-an-error),
+and duplicate the list in every state that makes an AWS API request through the
+Step Functions - AWS SDK integration. This is not practical.
 
 Thankfully, stopping an RDS or Aurora database is a watch-and-wait operation.
-Retries with long pauses in between make it unnecessary to match boto3's
-diligent retry logic.
+Natural retries with long pauses in between make it unnecessary to match
+boto3's diligent retry logic, which is meant to guard a single, critical API
+request.
 
 #### 3. Limited logging
 
 Logs ought to be very quiet, if the fable
 [The Boy Who Cried Wolf](https://en.wikipedia.org/wiki/The_Boy_Who_Cried_Wolf),
 the saying "All emphasis is no emphasis",
-and the [Three Mile Island nuclear accident](https://en.wikipedia.org/wiki/Three_Mile_Island_accident) are any guide.
+and the
+[Three Mile Island nuclear accident](https://en.wikipedia.org/wiki/Three_Mile_Island_accident)
+are any guide.
 
 > The computer printer registering alarms was running more than 2&frac12; hours
 behind the events and at one point jammed, thereby losing valuable information.
@@ -85,15 +108,15 @@ behind the events and at one point jammed, thereby losing valuable information.
 <details>
   <summary>References...</summary>
 
-- The quote appeared on Page 30 (as originally numbered) of the _Report of the
-President's Commission on the Accident at Three Miles Island_.
+- _Report of the President's Commission on the Accident at Three Miles Island_,
+  October, 1979, Page 30
 - Direct link:
   [archive.org](https://archive.org/details/three-mile-island-report/page/30/mode/1up)
 - Backup-up source:
   [US Department of Energy Office of Scientific and Technical Information](https://www.osti.gov/biblio/6986994)
-  (2&frac12; hours was mis-scanned as "2-k hours", an error that has been
-  repeated as "2000 hours" in at least one book. 2&frac12;-hours was bad, but
-  the backlog was not 83 days!)
+- In the backup source, 2&frac12; hours was mis-scanned as "2-k hours", an
+  error that has been repeated as "2000 hours" in at least one book. The
+  printing backlog did not reach 83 days; 2&frac12; hours was bad enough!
 
 </details>
 

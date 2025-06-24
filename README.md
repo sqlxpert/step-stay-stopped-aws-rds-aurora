@@ -8,6 +8,15 @@ This is a low-code, AWS Step Function-based alternative to my AWS Lambda-based
 tool for stopping RDS and Aurora databases that AWS has automatically started
 after the 7-day maximum stop period. Both use the same reliable algorithm.
 
+Jump to:
+[Get Started](#get-started)
+&bull;
+[Multi-Account, Multi-Region](#multi-account-multi-region)
+&bull;
+[Terraform](#terraform)
+&bull;
+[Security](#security)
+
 ||Step Function (here)|Lambda|
 |---:|:---:|:---:|
 |github.com/sqlxpert/|[step-stay-stopped-aws-rds-aurora](https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora)|[stay-stopped-aws-rds-aurora](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora#stay-stopped-rds-and-aurora)|

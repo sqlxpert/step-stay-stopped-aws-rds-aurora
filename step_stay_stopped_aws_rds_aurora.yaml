@@ -845,6 +845,7 @@ Resources:
               "Choices": [
                 {
                   "Condition": "{% $DoNotFollowUntilStopped %}",
+                  "Output": "{% \n  $states.input ~> | $ | {}, ['DbStatus'] |\n  /* Delete stale and non-final status; https://docs.jsonata.org/other-operators#-------transform */\n %}",
                   "Next": "Succeed"
                 }
               ],

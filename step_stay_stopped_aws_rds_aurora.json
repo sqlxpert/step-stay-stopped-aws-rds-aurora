@@ -147,6 +147,7 @@
       "Choices": [
         {
           "Condition": "{% $DoNotFollowUntilStopped %}",
+          "Output": "{% \n  $states.input ~> | $ | {}, ['DbStatus'] |\n  /* Delete stale status; https://docs.jsonata.org/other-operators#-------transform */\n %}",
           "Next": "Succeed"
         }
       ],

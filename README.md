@@ -96,7 +96,7 @@ boto3's diligent retry logic, meant more for single, critical AWS API calls.
 
 #### 3. Less logging control
 
-Logs should be for critical problems only, if the fable
+Logs should be kept clear so that critical problems stand out, if the fable
 [The Boy Who Cried Wolf](https://en.wikipedia.org/wiki/The_Boy_Who_Cried_Wolf),
 the saying "All emphasis is no emphasis",
 and the

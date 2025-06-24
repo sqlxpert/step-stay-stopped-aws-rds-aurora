@@ -234,7 +234,7 @@ to document and explain your state machine. Here is my advice:
     fact will make the definition easier for other people to understand. I like
     to place the `States` keys in temporal order. Within each state object
     and any nested objects, I like to place the keys in the order in which they
-    will be referenced:
+    will be referenced.
     - A logical order would be:<br/>
       `Type`;<br/>
       `Choices`, or `Resource`, `Arguments`, and `TimeoutSeconds`, or
@@ -247,9 +247,9 @@ to document and explain your state machine. Here is my advice:
       the objects near the top. Draw attention to differences.
 
  7. Don't hesitate to add extra Pass and Choice states so that the state names
-    themselves explain the steps in a process. (Minimize the number of state
-    transitions in cycles that will be traversed many times. In standard mode,
-    AWS charges per state transition.)
+    themselves explain discrete steps in a process. (Minimize the number of
+    state transitions in cycles that will be traversed many times. In standard
+    mode, AWS charges per state transition.)
 
 </details>
 

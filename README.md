@@ -477,12 +477,12 @@ Internally, the code ignores it in favor of the cluster-level event.
 ### Test by Invoking the Step Function
 
 Depending on locally-determined permissions, you may also be able to invoke
-the
-[StepStayStopped Step Function](https://console.aws.amazon.com/lambda/home#/functions?fo=and&o0=%3A&v0=StepStayStoppedRdsAuroraStepFn-)
+the `StepStayStopped`
+[Step Function](https://console.aws.amazon.com/states/home#/statemachines)
 manually. Edit the database names and date/time strings (must be within the
 past `StepFnTimeoutSeconds` and end in `Z` for
 [UTC](https://www.timeanddate.com/worldclock/timezone/utc))
-in these test messages:
+in these test inputs:
 
 ```json
 {

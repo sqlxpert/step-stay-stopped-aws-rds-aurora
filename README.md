@@ -12,7 +12,7 @@ after the 7-day maximum stop period. Both use the same reliable algorithm.
 |---:|:---:|:---:|
 |github.com/sqlxpert/|[step-stay-stopped-aws-rds-aurora](https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora)|[stay-stopped-aws-rds-aurora](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora#stay-stopped-rds-and-aurora)|
 |Status|Experimental|Supported|
-|Lines of code|&asymp;&nbsp;200|&asymp;&nbsp;333|
+|Lines of code|&asymp;&nbsp;170|&asymp;&nbsp;333|
 |[EventBridge rule](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-rules.html) target|Step Function|SQS queue, to Lambda function|
 |Event and response transformation|[JSONata](https://docs.jsonata.org)|Python|
 |API calls|[AWS SDK integration](https://docs.aws.amazon.com/step-functions/latest/dg/supported-services-awssdk.html)|[boto3 RDS client](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds.html)|

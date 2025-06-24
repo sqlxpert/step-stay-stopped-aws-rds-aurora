@@ -147,7 +147,6 @@
       "Choices": [
         {
           "Condition": "{% $DoNotFollowUntilStopped %}",
-          "Output": "{% \n  $states.input ~> | $ | {}, ['DbStatus'] |\n  /* Delete stale status; https://docs.jsonata.org/other-operators#-------transform */\n %}",
           "Next": "Succeed"
         }
       ],
@@ -163,7 +162,7 @@
     },
     "Succeed": {
       "Type": "Succeed",
-      "Output": "{% \n  $states.input ~> | $ | {}, ['Error', 'Cause'] |\n  /* Delete any past error; https://docs.jsonata.org/other-operators#-------transform */\n %}"
+      "Output": "{% \n  $states.input ~> | $ | {}, ['Error', 'Cause', 'DbStatus'] |\n  /* Delete any past error, and possibly-stale status; https://docs.jsonata.org/other-operators#-------transform */\n %}"
     }
   }
 }

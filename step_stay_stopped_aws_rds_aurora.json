@@ -61,7 +61,7 @@
         }
       ],
       "Output": "{% $states.input %}",
-      "Next": "FollowUntilStopped"
+      "Next": "FollowUntilStopped?"
     },
     "StopDBInstance": {
       "Type": "Task",
@@ -94,7 +94,7 @@
         }
       ],
       "Output": "{% $states.input %}",
-      "Next": "FollowUntilStopped"
+      "Next": "FollowUntilStopped?"
     },
     "AuroraDbInstanceNotEligibleForStopping?": {
       "Type": "Choice",
@@ -142,7 +142,7 @@
       ],
       "Default": "Wait"
     },
-    "FollowUntilStopped": {
+    "FollowUntilStopped?": {
       "Type": "Choice",
       "Choices": [
         {

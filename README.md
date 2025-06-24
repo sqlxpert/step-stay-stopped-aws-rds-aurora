@@ -4,55 +4,57 @@ _Keep AWS databases stopped when not needed, with a Step Function_
 
 ## Purpose
 
-This is a zero-code, AWS Step Function-based version of
-[github.com/sqlxpert/stay-stopped-aws-rds-aurora](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora#stay-stopped-rds-and-aurora)&nbsp;.
+This is a low-code, AWS Step Function-based alternative to my AWS Lambda-based
+tool for stopping RDS and Aurora databases that AWS has automatically started
+after the 7-day maximum stop period. Both use the same reliable algorithm.
 
-Both variants use the same algorithm to reliably stop RDS and Aurora databases
-that AWS has automatically started after the 7-day maximum stop period.
-
-**This variant as unsupported and experimental.** Please use the other one in
-production, because it is fully tested, thoroughly documented, and actively
-supported.
-
-### Step Function Advantages
-
-Quite frankly, it is a miracle that **200 lines of declarative JSON can replace
-333 lines of executable Python** code. Development is significantly faster,
-whether you add states visually or write or edit the JSON manually.
-
-Testing and debugging are moderately faster. Although a correct state machine,
-able to handle error conditions, is liable to be more complex than the
-initial, normal-case design, even a complex state machine diagram becomes
-readable when it's marked up with the actual traversal from a particular
-execution. Similarly, the full log, viewed inside the Step Functions console,
-shows data at the start and end of each state traversed, as well as data
-available for use in between, such as API responses.
-
-Clearly, a Step Functions require less maintenance. Although Step Functions may
-call AWS Lambda functions, many problems can be solved without recourse to
-Lambda, so that there is no software to patch &mdash; not even a runtime to
-update every few months.
-
-Step Functions are perfect for processes that require lots of wall-clock time
-but little actual computing time, such as waiting for a database to start and
-then seeing a stop request through until the database is stopped again. The
-standard mode
-[price is
-25&cent; per 10,000 transitions](https://aws.amazon.com/step-functions/pricing/#AWS_Step_Functions_Standard_Workflow_State_transitions_pricing)
-(arrows traversed, on the state machine diagram). To put this in perspective,
-10 or fewer state transitions occur every 9 minutes, from the time AWS starts
-a database until it is stopped again. Prices vary by region and may change.
-
-||Step Function Solution|Lambda Solution|
-|:---|:---:|:---:|
+||Step Function (here)|Lambda|
+|---:|:---:|:---:|
+|github.com/sqlxpert/|[step-stay-stopped-aws-rds-aurora](https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora)|[stay-stopped-aws-rds-aurora](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora#stay-stopped-rds-and-aurora)|
+|Status|Experimental|Supported|
 |Lines of code|&asymp;&nbsp;200|&asymp;&nbsp;333|
 |[EventBridge rule](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-rules.html) target|Step Function|SQS queue, to Lambda function|
 |Event and response transformation|[JSONata](https://docs.jsonata.org)|Python|
 |API calls|[AWS SDK integration](https://docs.aws.amazon.com/step-functions/latest/dg/supported-services-awssdk.html)|[boto3 RDS client](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds.html)|
 |Decisions and branching|[Choice states](https://docs.aws.amazon.com/step-functions/latest/dg/state-choice.html)|Python control flow statements|
 |Error handling|[Catchers](https://docs.aws.amazon.com/step-functions/latest/dg/concepts-error-handling.html#error-handling-fallback-states) on task states|`try`...`except`|
-|Retries|[Wait state](https://docs.aws.amazon.com/step-functions/latest/dg/state-wait.html)|[Queue message [in]visibility timeout](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html)|
-|Timeout|[State machine timeout](https://docs.aws.amazon.com/step-functions/latest/dg/statemachine-structure.html#statemachinetimeoutseconds)|[maxReceiveCount](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html#policies-for-dead-letter-queues) &times;<br/>Queue message [in]visibility timeout|
+|Retry mechanism|[Wait state](https://docs.aws.amazon.com/step-functions/latest/dg/state-wait.html)|[Queue message [in]visibility&nbsp;timeout](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html)|
+|Timeout mechanism|[State machine TimeoutSeconds](https://docs.aws.amazon.com/step-functions/latest/dg/statemachine-structure.html#statemachinetimeoutseconds)|[maxReceiveCount](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html#policies-for-dead-letter-queues)|
+
+### Step Function Advantages
+
+#### 1. Faster development, testing and debugging
+
+Quite frankly, it is a miracle that **200 lines of JSON can replace 333 lines
+of executable Python** code. Development is significantly faster, whether you
+add states visually or write or edit the JSON manually.
+
+Testing and debugging are moderately faster. Although a correct state machine,
+able to handle error conditions, is liable to be more complex than the
+initial, normal-case design, even a complex state machine diagram becomes
+readable when it's marked up with the traversal from a particular run. The
+full log, viewed inside the Step Functions console, shows data at the start
+and end of each state traversed, as well as data available for use in between,
+such as API responses.
+
+#### 2. Less maintenance
+
+Clearly, Step Functions require less maintenance. Although Step Functions may
+call AWS Lambda functions, many problems can be solved without recourse to
+Lambda, so that there is no software to patch &mdash; not even a runtime to
+update every few months.
+
+#### 3. Low cost
+
+Step Functions are perfect for processes that require lots of wall-clock time
+but little actual computing time, such as waiting for a database to start and
+then seeing a stop request through until the database is stopped again.
+The
+[Step Function standard mode price is 25&cent; per 10,000 transitions](https://aws.amazon.com/step-functions/pricing/#AWS_Step_Functions_Standard_Workflow_State_transitions_pricing)
+(arrows traversed, on the state machine diagram), regardless of time spent. To
+put this in perspective, 10 or fewer state transitions occur every 9 minutes,
+from the time AWS starts a database until it is stopped again. Prices vary by
+region and may change.
 
 ### Step Function Disadvantages
 
@@ -76,19 +78,18 @@ Another the StopDBInstance error, whose boto3 ClientError code is
 
 #### 2. Rudimentary retries
 
-[A single boto3 configuration parameter enables automatic retries](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/retries.html#standard-retry-mode)
-in response to 18 different exceptions and 4 general HTTP status codes.
-
-You would have to experiment to discover the Step Function service's name for
-each of the 26 error conditions (there is no comprehensive document), list all
-26 in the `ErrorEquals` field of
+[The AWS Python SDK automates retries](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/retries.html#standard-retry-mode)
+in response to 18 different exceptions and 4 general HTTP status codes. You
+would have to experiment to discover the Step Function service's name for each
+of the 26 error conditions (there is no comprehensive document), list all 26
+in the `ErrorEquals` field of the
 [retrier](https://docs.aws.amazon.com/step-functions/latest/dg/concepts-error-handling.html#error-handling-retrying-after-an-error),
-and duplicate the list in every state that makes an AWS API request through the
-Step Functions - AWS SDK integration. This is not practical.
+and duplicate the list in every state that makes an AWS API request. That's not
+practical.
 
 Thankfully, stopping an RDS or Aurora database is a watch-and-wait operation.
 Natural retries with long pauses in between make it unnecessary to match
-boto3's diligent retry logic, which is meant to guard a single, critical API
+boto3's diligent retry logic, meant to guard a single, critical AWS API
 request.
 
 #### 3. Limited logging control
@@ -110,28 +111,22 @@ behind the events and at one point jammed, thereby losing valuable information.
   October, 1979, Page 30
 - Direct link:
   [archive.org](https://archive.org/details/three-mile-island-report/page/30/mode/1up)
-- Backup-up source:
+- Backup:
   [US Department of Energy Office of Scientific and Technical Information](https://www.osti.gov/biblio/6986994)
 - In the backup source, 2&frac12; hours was mis-scanned as "2-k hours", an
   error that has been repeated as "2000 hours" in at least one book. The
-  printing backlog did not reach 83 days; 2&frac12; hours was bad enough!
+  printer backlog did not reach 83 days; 2&frac12; hours was bad enough!
 
 </details>
 
-It takes extra programming work to respect log levels. When something goes
-wrong, context information normally logged at a broad level like `INFO` has to
-be re-logged at a specific level like `ERROR`, or it will be lost.
-[Log levels for Step Functions execution events](https://docs.aws.amazon.com/step-functions/latest/dg/cw-logs.html#cloudwatch-log-level)
-are limited to `ALL`, `ERROR`, `FATAL`, and `OFF` (in order from most broad to
-most specific). Setting the level to `ALL` is the only way to be _certain_ that
-context information will be available.
-
-There's an additional problem with RDS and Aurora. StopDBCluster and
-StopDBInstance are not idempotent. It is normal to call multiple times and
+[Log levels for Step Function execution events](https://docs.aws.amazon.com/step-functions/latest/dg/cw-logs.html#cloudwatch-log-level)
+are limited to `ALL`, `ERROR`, `FATAL`, and `OFF`. Because StopDBCluster and
+StopDBInstance are not idempotent, it is normal to call multiple times and
 receive InvalidDBCluster and InvalidDBInstanceState errors, both before a
 database is `available` and while it is `stopping`. In Python, I can choose to
 log these expected exceptions at the `INFO` level rather than the `ERROR`
-level; you can ignore them. Step Functions logs any exception as an `ERROR`.
+level, so that you know you can ignore them. Step Functions logs any exception
+as an `ERROR`.
 
 #### 4. Cluttered diagrams
 
@@ -141,24 +136,28 @@ that might leave it running unexpectedly and waste money &mdash; is a complex
 process. State machine diagrams generated automatically by the Step Functions
 service are hard to read, with excessive cross-overs, tiny print, and
 truncated labels. You cannot edit them manually. Their explanatory value falls
-off as soon as you add error-handling logic to your state machine.
+off as soon as you add error-handling logic to your state machine. Admittedly,
+without Step Functions you have to create your own diagram.
 
 Compare:
 
-[<img src="media/step-stay-stopped-aws-rds-aurora-automatic-thumb.png" alt="" width="325" />](media/step-stay-stopped-aws-rds-aurora-automatic.png?raw=true "Automatic state machine diagram for Step-Stay Stopped, RDS and Aurora!") [<img src="media/stay-stopped-aws-rds-aurora-architecture-and-flow-thumb.png" alt="Relational Database Service Event Bridge events '0153' and '0154' (database started after exceeding 7-day maximum stop time) go to the main Simple Queue Service queue. The Amazon Web Services Lambda function stops the RDS instance or the Aurora cluster. If the database's status is invalid, the queue message becomes visible again in 9 minutes. A final status of 'stopping', 'deleting' or 'deleted' ends retries, as does an error status. After 160 tries (24 hours), the message goes to the error (dead letter) SQS queue." height="144" />](media/stay-stopped-aws-rds-aurora-architecture-and-flow.png?raw=true "Architecture diagram and flowchart for Stay Stopped, RDS and Aurora!")
+[<img src="media/step-stay-stopped-aws-rds-aurora-flow-auto-thumb.png" alt="A 'Choice' state named 'Dispatch' branches out to 'Stop Database Instance' and 'Stop Database Cluster' states. The 'Stop Database Instance' state feeds into a 'Describe Database Instances' state. The 'Describe Database Instances' and 'Stop Database Cluster' states both feed into a 'Choice' state named 'Database Status', which branches out to 'Wait' and 'Success' states. The 'Wait' state feeds back into the 'Dispatch' state. This describes an error-free state machine run, under the default configuration." height="144" />](media/step-stay-stopped-aws-rds-aurora-flow-auto.png?raw=true "Automatically-generated state machine diagram for Step-Stay Stopped, RDS and Aurora!")
+[<img src="media/stay-stopped-aws-rds-aurora-architecture-and-flow-thumb.png" alt="Relational Database Service Event Bridge events '0153' and '0154' (database started after exceeding 7-day maximum stop time) go to the main Simple Queue Service queue. The Amazon Web Services Lambda function stops the RDS instance or the Aurora cluster. If the database's status is invalid, the queue message becomes visible again in 9 minutes. A final status of 'stopping', 'deleting' or 'deleted' ends retries, as does an error status. After 160 tries (24 hours), the message goes to the error (dead letter) SQS queue." height="144" />](media/stay-stopped-aws-rds-aurora-architecture-and-flow.png?raw=true "Architecture diagram and flowchart for Stay Stopped, RDS and Aurora!")
 
 ### Step Functions Win!
 
-**The advantages of Step Functions far outweigh any disadvantages.** If you
-take the time to understand the _semantics_ of AWS APIs and build appropriate error-handling logic into your state machine &mdash; in other words, if your
-solution is _correct_ &mdash; then a compact, declarative implementation with a
-graphical representation cuts development time, simplifies testing, and reduces
-maintenance effort.
+**The advantages of Step Functions far outweigh the disadvantages.** If you
+take the time to understand the _semantics_ of AWS APIs and build appropriate
+error-handling logic into your state machine &mdash; in other words, if your
+solution is _correct_ &mdash; then a compact, predominantly declarative
+implementation with a graphical representation cuts development time,
+simplifies testing, and reduces maintenance effort.
 
-AWS is actively developing the Step Functions service. For example, the
-transition from JSONPath to JSONata significantly increased declarative
-capabilities. It's likely that AWS will address some of the disadvantages I
-encountered, in the future.
+AWS is actively improving the service. For example, the
+[transition from JSONPath to JSONata](https://aws.amazon.com/blogs/compute/simplifying-developer-experience-with-variables-and-jsonata-in-aws-step-functions/),
+begun in 2024, has significantly increased the declarative capabilities of Step
+Functions. It's possible that some of the disadvantages I noticed will be
+addressed in the future.
 
 ## Get Started
 

@@ -167,7 +167,7 @@ Compare:
 [<img src="media/step-stay-stopped-aws-rds-aurora-flow-auto-thumb.png" alt="A 'Choice' state named 'If Event Not Expired Choose Database Cluster Or Instance' branches out to 'Stop Database Instance' and 'Stop Database Cluster' states. The 'Stop Database Instance' state feeds into a 'Describe Database Instances' state. The 'Describe Database Instances' and 'Stop Database Cluster' states both feed into a 'Choice' state named 'Database Status', which branches out to 'Wait' and 'Success' states. The 'Wait' state feeds back into the 'If Event Not Expired Choose Database Cluster Or Instance' state. This summarizes an error-free run." height="144" />](media/step-stay-stopped-aws-rds-aurora-flow-auto.png?raw=true "Automatically-generated state machine diagram for the Amazon Web Services Step Function solution")
 [<img src="media/stay-stopped-aws-rds-aurora-architecture-and-flow-thumb.png" alt="Relational Database Service Event Bridge events '0153' and '0154' (database started after exceeding 7-day maximum stop time) go to the main Simple Queue Service queue. The Amazon Web Services Lambda function stops the RDS instance or the Aurora cluster. If the database's status is invalid, the queue message becomes visible again in 9 minutes. A final status of 'stopping', 'deleting' or 'deleted' ends retries. This summarizes an error-free run." height="144" />](media/stay-stopped-aws-rds-aurora-architecture-and-flow.png?raw=true "Custom architecture diagram and flowchart for the Amazon Web Services Lambda solution")
 
-### Step Function Wins!
+### The Step Function Wins!
 
 **The advantages of a Step Function far outweigh the disadvantages.** If you
 take the time to understand the _semantics_ of AWS APIs and build appropriate
@@ -181,6 +181,76 @@ AWS is actively improving the service. For example, the
 begun in 2024, has significantly increased the declarative capabilities of Step
 Functions. It's possible that some of the disadvantages I noticed will be
 addressed in the future.
+
+### Step Function Clarity
+
+Given the complexity of correct error-handling logic, and the weaknesses of the
+Step Function service's automatically-generated diagrams, it's doubly important
+to document and explain your state machine. Here is my advice:
+
+ 1. Choose descriptive state names. For example, I changed `Dispatch` to
+    `IfEventNotExpiredChooseDbClusterOrInstance`.
+
+ 2. Append a question mark (`?`) to the name of  straightforward binary Choice
+    state.
+
+ 3. Include the same root word(s) in a related AWS API method name, AWS API
+    method parameter name, AWS resource name, ARN component, state machine
+    variable name, JSONanata variable name, state `Output` key, state name,
+    `ErrorEquals` error name, and/or CloudFormation substitution parameter
+    name.
+
+ 4. Front-load distinguishing information to guard against truncation in
+    state machine diagrams. For example, in this pair of Boolean expressions
+    for Choice state rules, the string constants are to the left of the equals
+    sign, so that they won't be truncated:
+    - `'available' = states.input.DbStatus`
+    - `'stopping' = states.input.DbStatus`
+
+ 5. Don't add `Comment` keys or `/* JSONata comments */` if the information is
+    obvious from the state name, a Boolean expression in a Choice rule, an
+    `ErrorEquals` error name, or some other proximate clue.
+    - As of June, 2025, the Step Function service labels Choice rule branches
+      with `Comment` values, but still numbers Catch branches.
+    - Add a comment if a term cannot be used in searches. Search features don't
+      allow, or don't do a good job with: symbols; the definite article "the";
+      other short "stop-words"; and words with two or more popular meanings.
+      For example, this JSONata expression:
+
+      ```jsonata
+      $states.input ~> | $ | {}, ['Error', 'Cause'] |
+      ```
+
+      gives no clue about what to search for. It is impossible to search for
+      `$`, `{}`, or `|`, and probably for `~>` too. So, I add an in-line
+      comment explaining what the expression accomplishes, and I provide a
+      link to the description of the cryptic operator:
+
+      ```jsonata
+      /* Delete any past error; https://docs.jsonata.org/other-operators#-------transform */
+      ```
+
+ 6. Although a JSON object's keys form a set, and sets are unordered, changing
+    the order of the keys in a state machine's JSON definition code after the
+    fact will make the definition easier for other people to understand. I like
+    to place the `States` keys in temporal order. Within each state object
+    and any nested objects, I like to place the keys in the order in which they
+    will be referenced:
+    - A logical order would be:<br/>
+      `Type`;<br/>
+      `Choices`, or `Resource`, `Arguments`, and `TimeoutSeconds`, or
+      `Catch`;<br/>
+      `Condition` or `ErrorEquals`;<br/>
+      `Variables`, `Output`, and `Next`.
+    - A `Comment`, if needed, should go above, between or below the keys it
+      describes.
+    - If similar objects are repeated, put the keys whose values distinguish
+      the objects near the top. Draw attention to the differences.
+
+ 7. Don't hesitate to add extra Pass and Choice states so that the state names
+    themselves explain the steps in a process. (Minimize the number of state
+    transitions in cycles that will be traversed many times. In standard mode,
+    AWS charges per state transition.)
 
 </details>
 
@@ -341,14 +411,14 @@ Check the:
  1. [StepStayStoppedRdsAurora-StepFn CloudWatch log group](https://console.aws.amazon.com/cloudwatch/home#logsV2:log-groups$3FlogGroupNameFilter$3DStepStayStoppedRdsAurora-StepFn)
     - `Rds.InvalidDbInstanceStateException` or
       `Rds.InvalidDbClusterStateException` errors, with no other proximate
-      errors, are routine and can be ignored.
+      errors, are expected and can be ignored.
     - Log entries are JSON objects.
     - For more data, change the `LogLevel` in CloudFormation.
 
  2. `StepStayStoppedRdsAurora-ErrorQueue` (dead letter)
     [SQS queue](https://console.aws.amazon.com/sqs/v3/home#/queues)
-    - A message means that the Step Function did not run. The request to stop
-      the database was not made.
+    - A message here means that the Step Function did not run; the request to
+      stop the database was not made.
     - Usually the local security configuration is denying EventBridge necessary
       access to the Step Function.
 
@@ -379,7 +449,7 @@ these parameters in CloudFormation:
 |:---|:---:|:---:|
 |`Test`|`false`|`true`|
 |`LogLevel`|`ERROR`|`ALL`|
-|`StepFnTaskTimeoutSeconds`|`540`|`60`|
+|`StepFnWaitSeconds`|`540`|`60`|
 |&rarr; _Equivalent in minutes_|_9 minutes_|_1 minute_|
 |`StepFnTimeoutSeconds`|`86400`|`1800`|
 |&rarr; _Equivalent in hours_|_24 hours_|_&frac12; hour_|

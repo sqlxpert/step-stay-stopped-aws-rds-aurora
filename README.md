@@ -30,7 +30,7 @@ after the 7-day maximum stop period. Both use the same reliable algorithm.
 
 #### 1. Faster development, testing and debugging
 
-Quite frankly, it is a miracle that **200 lines of JSON can replace 333 lines
+Quite frankly, it is a miracle that **170 lines of JSON can replace 333 lines
 of executable Python** code. Development is significantly faster, whether you
 add states visually or you write or edit the JSON code manually.
 

@@ -2,41 +2,36 @@
   "Comment": "Stop AWS RDS and Aurora databases after the forced 7th-day start",
   "QueryLanguage": "JSONata",
   "TimeoutSeconds": ${StepFnTimeoutSeconds},
-  "StartAt": "AssignConstants",
+  "StartAt": "AssignConstantsAndExtractDbIdentifierFromEvent",
   "States": {
-    "AssignConstants": {
+    "AssignConstantsAndExtractDbIdentifierFromEvent": {
       "Type": "Pass",
       "Assign": {
-        "TaskTimeoutSeconds": ${StepFnTaskTimeoutSeconds},
-        "WaitSeconds": ${StepFnWaitSeconds},
-        "FollowUntilStopped": "{% ('${FollowUntilStopped}' = 'true') %}"
+        "StepFnTaskTimeoutSeconds": ${StepFnTaskTimeoutSeconds},
+        "DoNotFollowUntilStopped": "{% '${FollowUntilStopped}' = 'false' %}",
+        "StepFnWaitSeconds": ${StepFnWaitSeconds},
+        "StepFnTimeoutMilliseconds": "{% ${StepFnTimeoutSeconds} * 1000 %}"
       },
-      "Next": "ParseEvent"
+      "Comment": "FollowUntilStopped CloudFormation parameter is string",
+      "Output": "{% {\n  'Event': $states.input,\n  'Date': $states.input.detail.Date,\n  'SourceIdentifier': $states.input.detail.SourceIdentifier,\n  'SourceTypeWord': $split($states.input.detail.SourceType,'_')[-1]\n  /* Last word of 'CLUSTER' (Aurora) or 'DB_INSTANCE' (RDS) */\n} %}",
+      "Next": "IfEventNotExpiredChooseDbClusterOrInstance"
     },
-    "ParseEvent": {
-      "Type": "Pass",
-      "Output": "{% {\n  'Date': $states.input.detail.Date,\n  'SourceIdentifier': $states.input.detail.SourceIdentifier,\n\n  /* Events have 'CLUSTER' (Aurora) or 'DB_INSTANCE' (RDS); take last word */\n  'SourceTypeWord': $split($states.input.detail.SourceType,'_')[-1]\n} %}",
-      "Next": "Expired?"
-    },
-    "Expired?": {
+    "IfEventNotExpiredChooseDbClusterOrInstance": {
       "Type": "Choice",
-      "Default": "SourceTypeWord",
       "Choices": [
         {
-          "Condition": "{% $toMillis($states.input.Date) < ( $millis() - ${StepFnTimeoutSeconds} ) %}",
+          "Condition": "{% $toMillis($states.input.Date) < ( $millis() - $StepFnTimeoutMilliseconds ) %}",
+          "Output": "{% $merge([\n  $states.input,\n  {'Error': 'EventExpired'}\n]) %}",
           "Next": "Fail"
-        }
-      ]
-    },
-    "SourceTypeWord": {
-      "Type": "Choice",
-      "Choices": [
+        },
         {
           "Condition": "{% 'CLUSTER' = $states.input.SourceTypeWord %}",
+          "Output": "{% \n  $states.input ~> | $ | {}, ['Error', 'Cause'] |\n  /* Delete any past error; https://docs.jsonata.org/other-operators#-------transform */\n %}",
           "Next": "StopDBCluster"
         },
         {
           "Condition": "{% 'INSTANCE' = $states.input.SourceTypeWord %}",
+          "Output": "{% \n  $states.input ~> | $ | {}, ['Error', 'Cause'] |\n  /* Delete any past error; https://docs.jsonata.org/other-operators#-------transform */\n %}",
           "Next": "StopDBInstance"
         }
       ]
@@ -47,47 +42,26 @@
       "Arguments": {
         "DbClusterIdentifier": "{% $states.input.SourceIdentifier %}"
       },
-      "TimeoutSeconds": "{% $TaskTimeoutSeconds %}",
+      "TimeoutSeconds": "{% $StepFnTaskTimeoutSeconds %}",
       "Catch": [
         {
           "ErrorEquals": [
             "Rds.InvalidDbClusterStateException"
           ],
-          "Assign": {
-            "DbClusterStatusRegExpMatch": "{% $match($states.errorOutput.Cause, /^DbCluster [^ ]+ is in (.+) state/, 1) %}"
-          },
-          "Output": "{% $states.input %}",
-          "Next": "DbClusterStatusRegExpMatch"
-        },
-        {
-          "Comment": "Until each cluster member becomes available",
-          "ErrorEquals": [
-            "Rds.InvalidDbInstanceStateException"
-          ],
-          "Output": "{% $states.input %}",
-          "Next": "Wait"
+          "Output": "{% (\n  $DbClusterStatusRegExpMatch := $match($states.errorOutput.Cause, /^DbCluster [^ ]+ is in (.+) state/, 1);\n  $merge([\n    $states.input,\n    $DbClusterStatusRegExpMatch\n    ?\n    {'DbStatus': $lowercase($DbClusterStatusRegExpMatch.groups[0])}\n    :\n    {'DbStatus': '', 'Error': 'StopDBCluster|CannotParseException', 'Cause': $string($states.errorOutput.Cause)}\n  ])\n) %}",
+          "Next": "DbStatus"
         },
         {
           "ErrorEquals": [
             "States.ALL"
           ],
-          "Output": "{% $states.input %}",
+          "Comment": "Includes Rds.InvalidDbInstanceStateException, which occurs until each cluster member becomes available",
+          "Output": "{% $merge([\n  $states.input,\n  {'Error': 'StopDBCluster|' & $states.errorOutput.Error, 'Cause': $string($states.errorOutput.Cause)}\n]) %}",
           "Next": "Wait"
         }
       ],
       "Output": "{% $states.input %}",
       "Next": "FollowUntilStopped"
-    },
-    "DbClusterStatusRegExpMatch": {
-      "Type": "Choice",
-      "Choices": [
-        {
-          "Condition": "{% null = $DbClusterStatusRegExpMatch %}",
-          "Next": "Wait"
-        }
-      ],
-      "Output": "{% $merge([$states.input, {'DbStatus': $lowercase($DbClusterStatusRegExpMatch.groups[0])}]) %}",
-      "Default": "DbStatus"
     },
     "StopDBInstance": {
       "Type": "Task",
@@ -95,43 +69,41 @@
       "Arguments": {
         "DbInstanceIdentifier": "{% $states.input.SourceIdentifier %}"
       },
-      "TimeoutSeconds": "{% $TaskTimeoutSeconds %}",
+      "TimeoutSeconds": "{% $StepFnTaskTimeoutSeconds %}",
       "Catch": [
         {
           "ErrorEquals": [
             "Rds.InvalidDbInstanceStateException"
           ],
-          "Next": "DescribeDBInstances",
-          "Output": "{% $states.input %}"
+          "Output": "{% $merge([\n  $states.input,\n  {'Error': 'StopDBInstance|' & $states.errorOutput.Error, 'Cause': $string($states.errorOutput.Cause)}\n]) %}",
+          "Next": "DescribeDBInstances"
         },
         {
           "ErrorEquals": [
             "Rds.RdsException"
           ],
-          "Next": "AuroraDbInstanceNotEligibleForStopping",
-          "Output": "{% $states.input %}",
-          "Assign": {
-            "AuroraDbInstanceNotEligibleForStopping": "{% $contains($states.errorOutput.Cause, 'aurora') and $contains($states.errorOutput.Cause, 'not eligible for stopping') %}"
-          },
-          "Comment": "InvalidParameterCombination. Occurs only in test mode. RDS-EVENT-0088 database instance non-forced start is indistinguishable for RDS (accepted) and Aurora (rejected in favor of RDS-EVENT-0151 database cluster non-forced start)."
+          "Output": "{% $merge([\n  $states.input,\n  {'Error': 'StopDBInstance|' & $states.errorOutput.Error, 'Cause': $string($states.errorOutput.Cause)}\n]) %}",
+          "Next": "AuroraDbInstanceNotEligibleForStopping?"
         },
         {
           "ErrorEquals": [
             "States.ALL"
           ],
-          "Output": "{% $states.input %}",
+          "Output": "{% $merge([\n  $states.input,\n  {'Error': 'StopDBInstance|' & $states.errorOutput.Error, 'Cause': $string($states.errorOutput.Cause)}\n]) %}",
           "Next": "Wait"
         }
       ],
       "Output": "{% $states.input %}",
       "Next": "FollowUntilStopped"
     },
-    "AuroraDbInstanceNotEligibleForStopping": {
+    "AuroraDbInstanceNotEligibleForStopping?": {
       "Type": "Choice",
       "Choices": [
         {
-          "Next": "Succeed",
-          "Condition": "{% $AuroraDbInstanceNotEligibleForStopping %}"
+          "Condition": "{% $contains($states.input.Cause, 'aurora') and $contains($states.input.Cause, 'not eligible for stopping') %}",
+          "Comment": "InvalidParameterCombination. Occurs only in test mode. RDS-EVENT-0088 database instance non-forced start is indistinguishable for RDS (accepted) and Aurora (ignored in favor of RDS-EVENT-0151 database cluster non-forced start).",
+          "Output": "{% $merge([\n  $states.input,\n  {'Info': 'StopAuroraClusterNotInstance'}\n]) %}",
+          "Next": "Succeed"
         }
       ],
       "Default": "Fail"
@@ -142,17 +114,17 @@
       "Arguments": {
         "DbInstanceIdentifier": "{% $states.input.SourceIdentifier %}"
       },
-      "TimeoutSeconds": "{% $TaskTimeoutSeconds %}",
+      "TimeoutSeconds": "{% $StepFnTaskTimeoutSeconds %}",
       "Catch": [
         {
           "ErrorEquals": [
             "States.ALL"
           ],
-          "Output": "{% $states.input %}",
+          "Output": "{% $merge([\n  $states.input,\n{  'Error': 'DescribeDBInstances|' & $states.errorOutput.Error, 'Cause': $string($states.errorOutput.Cause)}\n]) %}",
           "Next": "Wait"
         }
       ],
-      "Output": "{% $merge([$states.input, {'DbStatus': $states.result.DbInstances[0].DbInstanceStatus}]) %}",
+      "Output": "{% (\n  $DbInstanceStatus := $states.result.DbInstances[0].DbInstanceStatus;\n  $merge([\n    $states.input,\n    $DbInstanceStatus\n    ?\n    {'DbStatus': $lowercase($DbInstanceStatus)}\n    :\n    {'DbStatus': '', 'Error': 'DescribeDBInstances|CannotParseResult', 'Cause': $string($states.result)}\n  ])\n) %}",
       "Next": "DbStatus"
     },
     "DbStatus": {
@@ -160,15 +132,12 @@
       "Choices": [
         {
           "Condition": "{% $states.input.DbStatus in ['inaccessible-encryption-credentials', 'cloning-failed', 'migration-failed', 'preparing-data-migration', 'failed', 'incompatible-restore', 'insufficient-capacity', 'restore-error', 'storage-full'] %}",
+          "Output": "{% $merge([\n  $states.input,\n  {'Error': 'CannotContinueInDbStatus'}\n]) %}",
           "Next": "Fail"
         },
         {
-          "Condition": "{% $states.input.DbStatus in ['stopped', 'deleting', 'deleted'] %}",
+          "Condition": "{% (('stopping' = $states.input.DbStatus) and $DoNotFollowUntilStopped) or ($states.input.DbStatus in ['stopped', 'deleting', 'deleted']) %}",
           "Next": "Succeed"
-        },
-        {
-          "Condition": "{% 'stopping' = $states.input.DbStatus %}",
-          "Next": "FollowUntilStopped"
         }
       ],
       "Default": "Wait"
@@ -177,22 +146,23 @@
       "Type": "Choice",
       "Choices": [
         {
-          "Condition": "{% $FollowUntilStopped %}",
-          "Next": "Wait"
+          "Condition": "{% $DoNotFollowUntilStopped %}",
+          "Next": "Succeed"
         }
       ],
-      "Default": "Succeed"
+      "Default": "Wait"
     },
     "Wait": {
       "Type": "Wait",
-      "Seconds": "{% $WaitSeconds %}",
-      "Next": "SourceTypeWord"
+      "Seconds": "{% $StepFnWaitSeconds %}",
+      "Next": "IfEventNotExpiredChooseDbClusterOrInstance"
     },
     "Fail": {
       "Type": "Fail"
     },
     "Succeed": {
-      "Type": "Succeed"
+      "Type": "Succeed",
+      "Output": "{% \n  $states.input ~> | $ | {}, ['Error', 'Cause'] |\n  /* Delete any past error; https://docs.jsonata.org/other-operators#-------transform */\n %}"
     }
   }
 }

@@ -352,7 +352,7 @@ entirely at your own risk. You are encouraged to review the source code.
 
 - A least-privilege role for the AWS Step Function.
 
-- A least-privilege queue poliy. The error (dead letter) queue can only
+- A least-privilege queue policy. The error (dead letter) queue can only
   consume messages from EventBridge. Encryption in transit is required.
 
 - Optional encryption at rest with the AWS Key Management System, for the

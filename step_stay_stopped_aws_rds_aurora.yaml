@@ -102,18 +102,6 @@ Parameters:
       primary key itself) must exist in every target region.
     Default: ""
 
-  StepFnRoleAttachLocalPolicyName:
-    Type: String
-    Description: >-
-      The name of a customer-managed IAM policy to attach to the Step Function
-      role. By including "Effect": "Deny" statements, you could, for example,
-      prevent the function from ever stopping production databases.
-      Specify only the name, not the ARN.
-      For a StackSet, the policy must exist, and have exactly the same name,
-      in every target AWS account.
-      Policies are account-wide, not regional.
-    Default: ""
-
   StepFnTaskTimeoutSeconds:
     Type: Number
     Description: >-
@@ -155,6 +143,18 @@ Parameters:
       . For a StackSet, the custom key must be multi-region ("mrk-" prefix in
       the KEY_ID), and a replica (or the primary key itself) must exist in
       every target region.
+    Default: ""
+
+  StepFnRoleAttachLocalPolicyName:
+    Type: String
+    Description: >-
+      The name of a customer-managed IAM policy to attach to the Step Function
+      role. By including "Effect": "Deny" statements, you could, for example,
+      prevent the function from ever stopping production databases.
+      Specify only the name, not the ARN.
+      For a StackSet, the policy must exist, and have exactly the same name,
+      in every target AWS account.
+      Policies are account-wide, not regional.
     Default: ""
 
   LogRetentionInDays:
@@ -235,11 +235,11 @@ Metadata:
       - Label:
           default: AWS Step Function to stop databases
         Parameters:
-          - StepFnRoleAttachLocalPolicyName
           - StepFnTaskTimeoutSeconds
           - StepFnWaitSeconds
           - StepFnTimeoutSeconds
           - StepFnKmsKey
+          - StepFnRoleAttachLocalPolicyName
       - Label:
           default: CloudWatch log for AWS Step Function
         Parameters:
@@ -266,8 +266,6 @@ Metadata:
         default: Maximum bytes in a message
       SqsKmsKey:
         default: KMS encryption key
-      StepFnRoleAttachLocalPolicyName:
-        default: Name of local IAM policy to attach to role
       StepFnTaskTimeoutSeconds:
         default: Maximum seconds for an AWS request
       StepFnWaitSeconds:
@@ -276,6 +274,8 @@ Metadata:
         default: Maximum seconds to try stopping a database
       StepFnKmsKey:
         default: KMS encryption key
+      StepFnRoleAttachLocalPolicyName:
+        default: Name of local IAM policy to attach to role
       LogRetentionInDays:
         default: Days before deleting
       IncludeExecutionDataInLog:
@@ -306,7 +306,7 @@ Conditions:
 
 Resources:
 
-  # Administrator: Block other AWS Step Function execution mechanisms.
+  # Administrator: Deny other AWS Step Function executions except when testing.
   ExecuteStepFnRole:
     Type: AWS::IAM::Role
     Properties:
@@ -325,7 +325,7 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: states:StartExecution
-                Resource: !GetAtt StepFn.Arn
+                Resource: !GetAtt StepStayStoppedRdsAuroraStepFn.Arn
 
         - Fn::If:
             - SqsKmsKeyCustom
@@ -366,9 +366,7 @@ Resources:
         # by AWS Step Functions. Separate, "managed" policies could be
         # attached to other roles or users, allowing permission escalation.
 
-        # https://docs.aws.amazon.com/step-functions/latest/dg/cw-logs.html#cloudwatch-iam-policy
-        # https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/AWS-logs-and-resource-policy.html#AWS-logs-infrastructure-CWL
-        - PolicyName: CloudWatchLogsRead
+        - PolicyName: CloudWatchLogDeliveryRead
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
@@ -379,18 +377,22 @@ Resources:
                   - logs:ListLogDeliveries
                   - logs:GetLogDelivery
                 Resource: "*"
-        - PolicyName: CloudWatchLogsInitialize
+
+        # https://docs.aws.amazon.com/step-functions/latest/dg/cw-logs.html#cloudwatch-iam-policy
+        # https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/AWS-logs-and-resource-policy.html#AWS-logs-infrastructure-CWL
+        #
+        # CloudWatch log delivery does not support resource-level policies.
+        # https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazoncloudwatchlogs.html#amazoncloudwatchlogs-actions-as-permissions
+        - PolicyName: CloudWatchLogDeliveryWrite
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
-                  - logs:PutResourcePolicy
                   - logs:CreateLogDelivery
                   - logs:UpdateLogDelivery
                   - logs:DeleteLogDelivery
                 Resource: "*"
-
         - PolicyName: CloudWatchLogsCreateLogGroupIfDeleted
           PolicyDocument:
             Version: "2012-10-17"
@@ -409,8 +411,8 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource: !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:${StepFnLogGrp}:log-stream:*"
-                # !GetAtt LogGroup.Arn ends with :* instead of allowing us to
-                # append :log-stream:* to make a log stream ARN
+                # !GetAtt StepFnLogGrp.Arn ends with :* instead of allowing us
+                # to append :log-stream:* to make a log stream ARN
 
         - PolicyName: RdsRead
           PolicyDocument:
@@ -472,9 +474,23 @@ Resources:
                     Condition:
                       StringEquals:
                         "kms:EncryptionContext:aws:states:stateMachineArn":
-                          !Sub "arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${AWS::StackName}-*"
+                          !Sub "arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:StepStayStoppedRdsAuroraStepFn-*"
                           # Step Function name prefix, to avoid a circular
                           # dependency
+
+  # https://docs.aws.amazon.com/step-functions/latest/dg/cw-logs.html#cloudwatch-iam-policy
+  # https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/AWS-logs-and-resource-policy.html#AWS-logs-infrastructure-CWL
+  StepFnLogGrpPol:
+    Type: AWS::Logs::ResourcePolicy
+    Properties:
+      PolicyName: !Sub "${AWS::StackName}LogDeliveryWrite"
+      # Considered
+      # https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/intrinsic-function-reference-ToJsonString.html
+      # but prefer to avoid a CloudFormation transform, because it would make
+      # stack updates difficult.
+      PolicyDocument: !Sub "{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [{\n    \"Effect\": \"Allow\",\n    \"Principal\": { \"Service\": \"delivery.logs.amazonaws.com\" },\n    \"Action\": [\n      \"logs:CreateLogStream\",\n      \"logs:PutLogEvents\"\n    ],\n    \"Resource\": [\n      \"arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:${StepFnLogGrp}:log-stream:*\"\n    ],\n    \"Condition\": {\n      \"StringEquals\": {\n        \"aws:SourceAccount\": \"${AWS::AccountId}\"\n      },\n      \"ArnLike\": {\n        \"aws:SourceArn\": \"arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*\"\n      }\n    }\n  }]\n}"
+      # ${StepFnLogGrp.Arn} ends with :* instead of allowing us to append
+      # :log-stream:* to make a log stream ARN
 
   ErrorQueuePol:
     Type: AWS::SQS::QueuePolicy
@@ -528,10 +544,10 @@ Resources:
           - !Sub >-
               RDS-EVENT-0153 forced Aurora database cluster start after 7 days,
               plus RDS-EVENT-0151 non-forced start for TEMPORARY TESTING,
-              to ${StepFn.Name}
+              to ${StepStayStoppedRdsAuroraStepFn.Name}
           - !Sub >-
               RDS-EVENT-0153 forced Aurora database cluster start after 7 days,
-              to ${StepFn.Name}
+              to ${StepStayStoppedRdsAuroraStepFn.Name}
       EventPattern:
         source: [ aws.rds ]
         detail-type: [ RDS DB Cluster Event ]
@@ -555,9 +571,9 @@ Resources:
                 # - null
         version: [ "0" ]
       Targets:
-        - Id: !GetAtt StepFn.Name
+        - Id: !GetAtt StepStayStoppedRdsAuroraStepFn.Name
           RoleArn: !GetAtt ExecuteStepFnRole.Arn
-          Arn: !GetAtt StepFn.Arn
+          Arn: !GetAtt StepStayStoppedRdsAuroraStepFn.Arn
           RetryPolicy:
             MaximumRetryAttempts: 10
             MaximumEventAgeInSeconds: 300  # 5 minutes
@@ -574,10 +590,10 @@ Resources:
               RDS-EVENT-0154 forced RDS database instance start after 7 days,
               plus RDS-EVENT-0088 non-forced start (ignored for instances in
               Aurora clusters) for TEMPORARY TESTING,
-              to ${StepFn.Name}
+              to ${StepStayStoppedRdsAuroraStepFn.Name}
           - !Sub >-
               RDS-EVENT-0154 forced RDS database instance start after 7 days,
-              to ${StepFn.Name}
+              to ${StepStayStoppedRdsAuroraStepFn.Name}
       EventPattern:
         source: [ aws.rds ]
         detail-type: [ RDS DB Instance Event ]
@@ -607,9 +623,9 @@ Resources:
                 # - null
         version: [ "0" ]
       Targets:
-        - Id: !GetAtt StepFn.Name
+        - Id: !GetAtt StepStayStoppedRdsAuroraStepFn.Name
           RoleArn: !GetAtt ExecuteStepFnRole.Arn
-          Arn: !GetAtt StepFn.Arn
+          Arn: !GetAtt StepStayStoppedRdsAuroraStepFn.Arn
           RetryPolicy:
             MaximumRetryAttempts: 10
             MaximumEventAgeInSeconds: 300  # 5 minutes
@@ -636,30 +652,6 @@ Resources:
       ReceiveMessageWaitTimeSeconds: 20  # Long polling (lowest cost)
       VisibilityTimeout: 0  # seconds; dead message retries don't make sense
 
-  # StepFnLogGrpPol:
-  #   Type: AWS::Logs::ResourcePolicy
-  #   Properties:
-  #     PolicyName: test
-  #     PolicyDocument: !Sub |
-  #       Version: "2012-10-17"
-  #       Statement:
-  #         - Effect: Allow
-  #           Principal: { Service: delivery.logs.amazonaws.com }
-  #           Action:
-  #             - logs:CreateLogStream
-  #             - logs:PutLogEvents
-  #           Resource:
-  #             - "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:${StepFnLogGrp}:log-stream:*"
-  #           Condition:
-  #             StringEquals:
-  #               "aws:SourceAccount":
-  #                 - "${AWS::AccountId}"
-  #             ArnLike:
-  #               "aws:SourceArn":
-  #                 - "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*"
-  # ${LogGroup.Arn} ends with :* instead of allowing us to
-  # append :log-stream:* to make a log stream ARN
-
   StepFnLogGrp:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -674,9 +666,9 @@ Resources:
   # prefix state machine names with StackName, and overriding StateMachineName
   # would hamper updates.
   # https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-stepfunctions-statemachine.html#cfn-stepfunctions-statemachine-statemachinename
-  # StepStayStoppedRdsAuroraStepFn:
-  StepFn:  # TODO
+  StepStayStoppedRdsAuroraStepFn:
     Type: AWS::StepFunctions::StateMachine
+    DependsOn: StepFnLogGrpPol
     Properties:
       EncryptionConfiguration:
         Fn::If:

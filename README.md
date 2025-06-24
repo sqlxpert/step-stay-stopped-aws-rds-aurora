@@ -21,13 +21,18 @@ after the 7-day maximum stop period. Both use the same reliable algorithm.
 |Retry mechanism|[Wait state](https://docs.aws.amazon.com/step-functions/latest/dg/state-wait.html)|[Queue message [in]visibility&nbsp;timeout](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html)|
 |Timeout mechanism|[State machine TimeoutSeconds](https://docs.aws.amazon.com/step-functions/latest/dg/statemachine-structure.html#statemachinetimeoutseconds)|[maxReceiveCount](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html#policies-for-dead-letter-queues)|
 
+## Comparison
+
+<details>
+  <summary>Step Function advantages and disadvantages...</summary>
+
 ### Step Function Advantages
 
 #### 1. Faster development, testing and debugging
 
 Quite frankly, it is a miracle that **200 lines of JSON can replace 333 lines
 of executable Python** code. Development is significantly faster, whether you
-add states visually or write or edit the JSON manually.
+add states visually or you write or edit the JSON code manually.
 
 Testing and debugging are moderately faster. Although a correct state machine,
 able to handle error conditions, is liable to be more complex than the
@@ -52,49 +57,46 @@ then seeing a stop request through until the database is stopped again.
 The
 [Step Function standard mode price is 25&cent; per 10,000 transitions](https://aws.amazon.com/step-functions/pricing/#AWS_Step_Functions_Standard_Workflow_State_transitions_pricing)
 (arrows traversed, on the state machine diagram), regardless of time spent. To
-put this in perspective, 10 or fewer state transitions occur every 9 minutes,
-from the time AWS starts a database until it is stopped again. Prices vary by
-region and may change.
+put this in perspective, if we ignore the negligible number of initial and
+final state transitions, a cycle of no more than 5 state transitions repeats
+every 9 minutes from the time AWS starts a database until the database is
+stopped again. Prices vary by region, and might change.
 
 ### Step Function Disadvantages
 
 #### 1. Inconsistent error names
 
-These inconsistencies are bugs waiting to happen. For example, the key
-StopDBInstance error has 3 different names:
+These inconsistencies are bugs waiting to happen. Here are two key
+StopDBInstance errors:
 
-  1. boto3 (AWS Python SDK) exception name:
-     [`InvalidDBInstanceStateFault`](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds/client/stop_db_instance.html)
-  2. boto3
-     [ClientError](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/error-handling.html#parsing-error-responses-and-catching-exceptions-from-aws-services)
-     code: `InvalidDBInstanceState`. This matches the
-     [API error](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_StopDBInstance.html#API_StopDBInstance_Errors).
-  3. Step Functions error name: `Rds.InvalidDbInstanceStateException`.
-     There is even a
-     [special note about the Exception suffix](https://docs.aws.amazon.com/step-functions/latest/dg/supported-services-awssdk.html#use-awssdk-integ)!
+||Cannot Be Stopped Now|Cannot Be Stopped Ever|
+|---:|:---|:---|
+|Dynamic boto3 exception: `Client("rds").exceptions.`|[`InvalidDBInstanceStateFault`](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds/client/stop_db_instance.html)||
+|Static boto3 [ClientError](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/error-handling.html#parsing-error-responses-and-catching-exceptions-from-aws-services) exception `Code`|`InvalidDBInstanceState`|`InvalidParameterCombination`|
+|AWS API error|[`InvalidDBInstanceState`](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_StopDBInstance.html#API_StopDBInstance_Errors)||
+|Step Function `ErrorEquals` match: `Rds.`|`InvalidDbInstanceStateException`|`RdsException`|
 
-Another the StopDBInstance error, whose boto3 ClientError code is
-`InvalidParameterCombination`, becomes `Rds.RdsException` in Step Functions.
+There is even a
+[special note about the `Exception` suffix](https://docs.aws.amazon.com/step-functions/latest/dg/supported-services-awssdk.html#use-awssdk-integ)!
 
 #### 2. Rudimentary retries
 
-[The AWS Python SDK automates retries](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/retries.html#standard-retry-mode)
-in response to 18 different exceptions and 4 general HTTP status codes. You
-would have to experiment to discover the Step Function service's name for each
-of the 26 error conditions (there is no comprehensive document), list all 26
-in the `ErrorEquals` field of the
+[boto3 can retry automatically](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/retries.html#standard-retry-mode)
+in response to 18 exceptions and 4 general HTTP status codes. You'd have to
+experiment to discover the Step Function service's name for each of the 26
+error conditions (there is no comprehensive document), list all 26 in the
+`ErrorEquals` field of the
 [retrier](https://docs.aws.amazon.com/step-functions/latest/dg/concepts-error-handling.html#error-handling-retrying-after-an-error),
-and duplicate the list in every state that makes an AWS API request. That's not
-practical.
+and then duplicate the list in every state that makes an AWS API request.
+That's just not practical.
 
 Thankfully, stopping an RDS or Aurora database is a watch-and-wait operation.
 Natural retries with long pauses in between make it unnecessary to match
-boto3's diligent retry logic, meant to guard a single, critical AWS API
-request.
+boto3's diligent retry logic, meant more for single, critical AWS API calls.
 
-#### 3. Limited logging control
+#### 3. Less logging control
 
-Logs ought to be very quiet, if the fable
+Logs should be for critical problems only, if the fable
 [The Boy Who Cried Wolf](https://en.wikipedia.org/wiki/The_Boy_Who_Cried_Wolf),
 the saying "All emphasis is no emphasis",
 and the
@@ -105,7 +107,7 @@ are any guide.
 behind the events and at one point jammed, thereby losing valuable information.
 
 <details>
-  <summary>References...</summary>
+  <summary>Reference...</summary>
 
 - _Report of the President's Commission on the Accident at Three Miles Island_,
   October, 1979, Page 30
@@ -113,36 +115,39 @@ behind the events and at one point jammed, thereby losing valuable information.
   [archive.org](https://archive.org/details/three-mile-island-report/page/30/mode/1up)
 - Backup:
   [US Department of Energy Office of Scientific and Technical Information](https://www.osti.gov/biblio/6986994)
-- In the backup source, 2&frac12; hours was mis-scanned as "2-k hours", an
+- In the backup source, "2&frac12; hours" was mis-scanned as "2-k hours", an
   error that has been repeated as "2000 hours" in at least one book. The
   printer backlog did not reach 83 days; 2&frac12; hours was bad enough!
 
 </details>
 
-[Log levels for Step Function execution events](https://docs.aws.amazon.com/step-functions/latest/dg/cw-logs.html#cloudwatch-log-level)
-are limited to `ALL`, `ERROR`, `FATAL`, and `OFF`. Because StopDBCluster and
-StopDBInstance are not idempotent, it is normal to call multiple times and
-receive InvalidDBCluster and InvalidDBInstanceState errors, both before a
-database is `available` and while it is `stopping`. In Python, I can choose to
-log these expected exceptions at the `INFO` level rather than the `ERROR`
-level, so that you know you can ignore them. Step Functions logs any exception
-as an `ERROR`.
+The Step Function service logs any exception at the `ERROR` level. I cannot
+choose to log expected exceptions (such as InvalidDBClusterState when calling
+StopDBCluster while an Aurora database is `starting` and while it's `stopping`)
+at the `INFO` level and spare the `ERROR` level for exceptions that require
+attention.
 
-#### 4. Cluttered diagrams
+In fact,
+[Step Function log levels](https://docs.aws.amazon.com/step-functions/latest/dg/cw-logs.html#cloudwatch-log-level)
+skip directly from `ALL` to `ERROR`. Without an `INFO` level, it's impossible
+to log successful database stop operations without throwing in `DEBUG`-level
+details too.
+
+#### 4. Complex diagrams
 
 Reliably re-stopping an RDS or Aurora database &mdash; that is, avoiding
 [race conditions](https://en.wikipedia.org/wiki/Race_condition)
-that might leave it running unexpectedly and waste money &mdash; is a complex
-process. State machine diagrams generated automatically by the Step Functions
-service are hard to read, with excessive cross-overs, tiny print, and
-truncated labels. You cannot edit them manually. Their explanatory value falls
-off as soon as you add error-handling logic to your state machine. Admittedly,
-without Step Functions you have to create your own diagram.
+that might leave it running unexpectedly, at your expense &mdash; is a complex
+process. The Step Function service generates hard-to-read diagrams with tiny
+text, truncated labels, and unnecessary cross-overs. A diagram's explanatory
+value falls off as soon as you add error-handling logic to your state machine.
+This is more a missed opportunity than a disadvantage; with a different
+service, you'd have to create your own diagram.
 
 Compare:
 
-[<img src="media/step-stay-stopped-aws-rds-aurora-flow-auto-thumb.png" alt="A 'Choice' state named 'Dispatch' branches out to 'Stop Database Instance' and 'Stop Database Cluster' states. The 'Stop Database Instance' state feeds into a 'Describe Database Instances' state. The 'Describe Database Instances' and 'Stop Database Cluster' states both feed into a 'Choice' state named 'Database Status', which branches out to 'Wait' and 'Success' states. The 'Wait' state feeds back into the 'Dispatch' state. This describes an error-free state machine run, under the default configuration." height="144" />](media/step-stay-stopped-aws-rds-aurora-flow-auto.png?raw=true "Automatically-generated state machine diagram for Step-Stay Stopped, RDS and Aurora!")
-[<img src="media/stay-stopped-aws-rds-aurora-architecture-and-flow-thumb.png" alt="Relational Database Service Event Bridge events '0153' and '0154' (database started after exceeding 7-day maximum stop time) go to the main Simple Queue Service queue. The Amazon Web Services Lambda function stops the RDS instance or the Aurora cluster. If the database's status is invalid, the queue message becomes visible again in 9 minutes. A final status of 'stopping', 'deleting' or 'deleted' ends retries, as does an error status. After 160 tries (24 hours), the message goes to the error (dead letter) SQS queue." height="144" />](media/stay-stopped-aws-rds-aurora-architecture-and-flow.png?raw=true "Architecture diagram and flowchart for Stay Stopped, RDS and Aurora!")
+[<img src="media/step-stay-stopped-aws-rds-aurora-flow-auto-thumb.png" alt="A 'Choice' state named 'If Event Not Expired Choose Database Cluster Or Instance' branches out to 'Stop Database Instance' and 'Stop Database Cluster' states. The 'Stop Database Instance' state feeds into a 'Describe Database Instances' state. The 'Describe Database Instances' and 'Stop Database Cluster' states both feed into a 'Choice' state named 'Database Status', which branches out to 'Wait' and 'Success' states. The 'Wait' state feeds back into the 'If Event Not Expired Choose Database Cluster Or Instance' state. This summarizes an error-free run." height="144" />](media/step-stay-stopped-aws-rds-aurora-flow-auto.png?raw=true "Automatically-generated state machine diagram for the Amazon Web Services Step Function solution")
+[<img src="media/stay-stopped-aws-rds-aurora-architecture-and-flow-thumb.png" alt="Relational Database Service Event Bridge events '0153' and '0154' (database started after exceeding 7-day maximum stop time) go to the main Simple Queue Service queue. The Amazon Web Services Lambda function stops the RDS instance or the Aurora cluster. If the database's status is invalid, the queue message becomes visible again in 9 minutes. A final status of 'stopping', 'deleting' or 'deleted' ends retries. This summarizes an error-free run." height="144" />](media/stay-stopped-aws-rds-aurora-architecture-and-flow.png?raw=true "Custom architecture diagram and flowchart for the Amazon Web Services Lambda solution")
 
 ### Step Functions Win!
 
@@ -159,13 +164,21 @@ begun in 2024, has significantly increased the declarative capabilities of Step
 Functions. It's possible that some of the disadvantages I noticed will be
 addressed in the future.
 
+</details>
+
 ## Get Started
 
  1. Log in to the AWS Console as an administrator. Choose an AWS account and a
     region where you have an RDS or Aurora database that is normally stopped,
     or that you can stop now and leave stopped for 8 days.
 
- 2. Create a
+ 2. If you used Stay-Stopped, the original, AWS Lambda-based variant,
+    - Delete your standalone `StayStoppedRdsAurora` CloudFormation _stack_, or
+    - Delete your `StayStoppedRdsAurora` CloudFormation _StackSet_, or set the
+      `Enable` parameter to "false" and then deploy the change to all existing
+      targets.
+
+ 3. Create a
     [CloudFormation stack](https://console.aws.amazon.com/cloudformation/home)
     "With new resources (standard)". Select "Upload a template file", then
     select "Choose file" and navigate to a locally-saved copy of
@@ -174,7 +187,7 @@ addressed in the future.
 
     - Stack name: `StepStayStoppedRdsAurora`
 
- 3. Wait 8 days, then check that your
+ 4. Wait 8 days, then check that your
     [RDS or Aurora database](https://console.aws.amazon.com/rds/home#databases:)
     is stopped. After clicking the RDS database instance name or the Aurora
     database cluster name, open the "Logs & events" tab and scroll to "Recent
@@ -200,10 +213,16 @@ AWS account. To deploy in multiple regions and/or multiple AWS accounts,
  1. Delete any standalone `StepStayStoppedRdsAurora` CloudFormation _stacks_ in
     your target regions and/or AWS accounts.
 
- 2. Complete the prerequisites for creating a _StackSet_ with
+ 2. If you used Stay-Stopped, the original, AWS Lambda-based variant,
+    - Delete any standalone `StayStoppedRdsAurora` CloudFormation _stacks_, or
+    - Delete your `StayStoppedRdsAurora` CloudFormation _StackSet_, or set the
+      `Enable` parameter to "false" and then deploy the change to all existing
+      targets.
+
+ 3. Complete the prerequisites for creating a _StackSet_ with
     [service-managed permissions](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/stacksets-orgs-enable-trusted-access.html).
 
- 3. In the management AWS account (or a delegated administrator account),
+ 4. In the management AWS account (or a delegated administrator account),
     create a
     [CloudFormation StackSet](https://console.aws.amazon.com/cloudformation/home#/stacksets).
     Select "Upload a template file", then select "Choose file" and upload a
@@ -213,7 +232,7 @@ AWS account. To deploy in multiple regions and/or multiple AWS accounts,
 
     - StackSet name: `StepStayStoppedRdsAurora`
 
- 4. Two pages later, under "Deployment targets", select "Deploy to
+ 5. Two pages later, under "Deployment targets", select "Deploy to
     Organizational Units". Enter your target `ou-` identifier.
     Step-Stay-Stopped will be deployed in all AWS accounts in your target OU.
     Toward the bottom of the page, specify your target region(s).
@@ -245,20 +264,17 @@ entirely at your own risk. You are encouraged to review the source code.
 
 - A least-privilege role for the AWS Step Function.
 
-- A least-privilege queue policies. The error (dead letter) queue can only
+- A least-privilege queue poliy. The error (dead letter) queue can only
   consume messages from EventBridge. Encryption in transit is required.
 
 - Optional encryption at rest with the AWS Key Management System, for the
-  queue and the log. This can protect EventBridge events containing database
-  identifiers and metadata, such as tags. KMS keys housed in a different AWS
-  account, and multi-region keys, are supported.
+  error queue, the Step Function state machine, and the log. This can protect
+  EventBridge events containing database identifiers and metadata, such as
+  tags. KMS keys housed in a different AWS account, and multi-region keys, are
+  supported.
 
-- No data storage other than in the queue and the log, both of which have
-  configurable retention periods.
-
-- A per-request timeout, a retry mechanism, and an overall Step Function
-  state machine timeout, to increase the likelihood that a database will be
-  stopped as intended but prevent endless retries.
+- A retry mechanism and a state machine timeout, to increase the likelihood
+  that a database will be stopped as intended but prevent endless retries.
 
 - A 24-hour event date/time expiry check, to prevent processing of accumulated
   stale events, if any.
@@ -279,7 +295,7 @@ entirely at your own risk. You are encouraged to review the source code.
   the function role to arbitrary functions.
 
 - Separate production workloads. Although this tool only stops databases that
-  _AWS_ is starting after they've been stopped for 7 days, the Lambda function
+  _AWS_ is starting after they've been stopped for 7 days, the Step Function
   could stop _any_ database if invoked directly, with a contrived event as
   input. You might choose not to deploy this tool in AWS accounts used for
   production, or you might add a custom IAM policy to the function role,
@@ -305,29 +321,18 @@ entirely at your own risk. You are encouraged to review the source code.
 Check the:
 
  1. [StepStayStoppedRdsAurora-StepFn CloudWatch log group](https://console.aws.amazon.com/cloudwatch/home#logsV2:log-groups$3FlogGroupNameFilter$3DStepStayStoppedRdsAurora-StepFn)
-    - Scrutinize log entries at the `ERROR` level:
-
-      `InvalidDBInstanceState` or `InvalidDBClusterStateFault` :
-
-      - One time:
-        A database could not be stopped because it was in an unexpected state.
-      - Multiple times for the same database:
-        The database was in an unexpected but potentially recoverable state.
-        Step-Stay-Stopped retries every 9 minutes, until 24 hours have passed.
-
+    - `Rds.InvalidDbInstanceStateException` or
+      `Rds.InvalidDbClusterStateException` errors, with no other proximate
+      errors, are routine and can be ignored.
     - Log entries are JSON objects.
-      - Step-Stay-Stopped includes `"level"` , `"type"` and `"value"` keys.
-      - Other software components may use different keys.
     - For more data, change the `LogLevel` in CloudFormation.
 
  2. `StepStayStoppedRdsAurora-ErrorQueue` (dead letter)
     [SQS queue](https://console.aws.amazon.com/sqs/v3/home#/queues)
-    - A message in this queue means that Step-Stay-Stopped did not stop a
-      database, usually after trying for 24 hours.
-    - The message will usually be the original EventBridge event from when AWS
-      started the database after it had been stopped for 7 days.
-    - Rarely, a message in this queue indicates that the local security
-      configuration is denying necessary access to SQS or Lambda.
+    - A message means that the Step Function did not run. The request to stop
+      the database was not made.
+    - Usually the local security configuration is denying EventBridge necessary
+      access to the Step Function.
 
  3. [CloudTrail Event history](https://console.aws.amazon.com/cloudtrailv2/home?ReadOnly=false/events#/events?ReadOnly=false)
     - CloudTrail events with an "Error code" may indicate permissions
@@ -352,16 +357,14 @@ AWS starts RDS and Aurora databases that have been stopped for 7 days, but we
 need a faster mechanism for realistic, end-to-end testing. Temporarily change
 these parameters in CloudFormation:
 
-**UPDATES PENDING**
-
 |Parameter|Normal|Test|
 |:---|:---:|:---:|
 |`Test`|`false`|`true`|
-|`LogLevel`|`ERROR`|`INFO`|
-|`QueueVisibilityTimeoutSecs`|`540`|`60`|
+|`LogLevel`|`ERROR`|`ALL`|
+|`StepFnTaskTimeoutSeconds`|`540`|`60`|
 |&rarr; _Equivalent in minutes_|_9 minutes_|_1 minute_|
-|`QueueMaxReceiveCount`|`160`|`30`|
-|&rarr; _Equivalent time_|_24 hours_|_30 minutes_|
+|`StepFnTimeoutSeconds`|`86400`|`1800`|
+|&rarr; _Equivalent in hours_|_24 hours_|_&frac12; hour_|
 
 Given the operational and security risks explained below, **&#9888; exit test
 mode as quickly as possible**. If your test database is ready, several minutes
@@ -389,8 +392,8 @@ Internally, the code ignores it in favor of the cluster-level event.
 Depending on locally-determined permissions, you may also be able to invoke
 the
 [StepStayStopped Step Function](https://console.aws.amazon.com/lambda/home#/functions?fo=and&o0=%3A&v0=StepStayStoppedRdsAurora-StepFn-)
-manually. Edit the database names and date/time strings (must be within the past
-`QueueMaxReceiveCount` &times; `QueueVisibilityTimeoutSecs` and end in `Z` for
+manually. Edit the database names and date/time strings (must be within the
+past `StepFnTimeoutSeconds` and end in `Z` for
 [UTC](https://www.timeanddate.com/worldclock/timezone/utc))
 in these test messages:
 

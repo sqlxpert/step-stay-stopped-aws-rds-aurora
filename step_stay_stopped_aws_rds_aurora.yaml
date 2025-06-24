@@ -700,20 +700,21 @@ Resources:
           "Comment": "Stop AWS RDS and Aurora databases after the forced 7th-day start",
           "QueryLanguage": "JSONata",
           "TimeoutSeconds": ${StepFnTimeoutSeconds},
-          "StartAt": "ParseEvent",
+          "StartAt": "AssignConstantsAndExtractDbIdentifierFromEvent",
           "States": {
-            "ParseEvent": {
+            "AssignConstantsAndExtractDbIdentifierFromEvent": {
               "Type": "Pass",
               "Assign": {
                 "StepFnTaskTimeoutSeconds": ${StepFnTaskTimeoutSeconds},
+                "DoNotFollowUntilStopped": "{% '${FollowUntilStopped}' = 'false' %}",
                 "StepFnWaitSeconds": ${StepFnWaitSeconds},
-                "FollowUntilStopped": "{% '${FollowUntilStopped}' = 'true' %}",
                 "StepFnTimeoutMilliseconds": "{% ${StepFnTimeoutSeconds} * 1000 %}"
               },
+              "Comment": "FollowUntilStopped CloudFormation parameter is string",
               "Output": "{% {\n  'Event': $states.input,\n  'Date': $states.input.detail.Date,\n  'SourceIdentifier': $states.input.detail.SourceIdentifier,\n  'SourceTypeWord': $split($states.input.detail.SourceType,'_')[-1]\n  /* Last word of 'CLUSTER' (Aurora) or 'DB_INSTANCE' (RDS) */\n} %}",
-              "Next": "Dispatch"
+              "Next": "IfEventNotExpiredChooseDbClusterOrInstance"
             },
-            "Dispatch": {
+            "IfEventNotExpiredChooseDbClusterOrInstance": {
               "Type": "Choice",
               "Choices": [
                 {
@@ -749,17 +750,10 @@ Resources:
                   "Next": "DbStatus"
                 },
                 {
-                  "Comment": "Until each cluster member becomes available",
-                  "ErrorEquals": [
-                    "Rds.InvalidDbInstanceStateException"
-                  ],
-                  "Output": "{% $merge([\n  $states.input,\n  {'Error': 'StopDBCluster|' & $states.errorOutput.Error, 'Cause': $string($states.errorOutput.Cause)}\n]) %}",
-                  "Next": "Wait"
-                },
-                {
                   "ErrorEquals": [
                     "States.ALL"
                   ],
+                  "Comment": "Includes Rds.InvalidDbInstanceStateException, which occurs until each cluster member becomes available",
                   "Output": "{% $merge([\n  $states.input,\n  {'Error': 'StopDBCluster|' & $states.errorOutput.Error, 'Cause': $string($states.errorOutput.Cause)}\n]) %}",
                   "Next": "Wait"
                 }
@@ -828,7 +822,7 @@ Resources:
                   "Next": "Wait"
                 }
               ],
-              "Output": "{% (\n  $DbInstanceStatus := $states.result.DbInstances[0].DbInstanceStatus;\n  $merge([\n    $states.input,\n    $DbInstanceStatus\n    ?\n    {'DbStatus': $DbInstanceStatus}\n    :\n    {'DbStatus': '', 'Error': 'DescribeDBInstances|CannotParseResult', 'Cause': $string($states.result)}\n  ])\n) %}",
+              "Output": "{% (\n  $DbInstanceStatus := $states.result.DbInstances[0].DbInstanceStatus;\n  $merge([\n    $states.input,\n    $DbInstanceStatus\n    ?\n    {'DbStatus': $lowercase($DbInstanceStatus)}\n    :\n    {'DbStatus': '', 'Error': 'DescribeDBInstances|CannotParseResult', 'Cause': $string($states.result)}\n  ])\n) %}",
               "Next": "DbStatus"
             },
             "DbStatus": {
@@ -840,12 +834,8 @@ Resources:
                   "Next": "Fail"
                 },
                 {
-                  "Condition": "{% $states.input.DbStatus in ['stopped', 'deleting', 'deleted'] %}",
+                  "Condition": "{% (('stopping' = $states.input.DbStatus) and $DoNotFollowUntilStopped) or ($states.input.DbStatus in ['stopped', 'deleting', 'deleted']) %}",
                   "Next": "Succeed"
-                },
-                {
-                  "Condition": "{% 'stopping' = $states.input.DbStatus %}",
-                  "Next": "FollowUntilStopped"
                 }
               ],
               "Default": "Wait"
@@ -854,16 +844,16 @@ Resources:
               "Type": "Choice",
               "Choices": [
                 {
-                  "Condition": "{% $FollowUntilStopped %}",
-                  "Next": "Wait"
+                  "Condition": "{% $DoNotFollowUntilStopped %}",
+                  "Next": "Succeed"
                 }
               ],
-              "Default": "Succeed"
+              "Default": "Wait"
             },
             "Wait": {
               "Type": "Wait",
               "Seconds": "{% $StepFnWaitSeconds %}",
-              "Next": "Dispatch"
+              "Next": "IfEventNotExpiredChooseDbClusterOrInstance"
             },
             "Fail": {
               "Type": "Fail"

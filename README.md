@@ -478,7 +478,7 @@ Internally, the code ignores it in favor of the cluster-level event.
 
 Depending on locally-determined permissions, you may also be able to invoke
 the
-[StepStayStopped Step Function](https://console.aws.amazon.com/lambda/home#/functions?fo=and&o0=%3A&v0=StepStayStoppedRdsAurora-StepFn-)
+[StepStayStopped Step Function](https://console.aws.amazon.com/lambda/home#/functions?fo=and&o0=%3A&v0=StepStayStoppedRdsAuroraStepFn-)
 manually. Edit the database names and date/time strings (must be within the
 past `StepFnTimeoutSeconds` and end in `Z` for
 [UTC](https://www.timeanddate.com/worldclock/timezone/utc))

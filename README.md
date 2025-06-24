@@ -21,6 +21,15 @@ after the 7-day maximum stop period. Both use the same reliable algorithm.
 |Retry mechanism|[Wait state](https://docs.aws.amazon.com/step-functions/latest/dg/state-wait.html)|[Queue message [in]visibility&nbsp;timeout](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html)|
 |Timeout mechanism|[State machine TimeoutSeconds](https://docs.aws.amazon.com/step-functions/latest/dg/statemachine-structure.html#statemachinetimeoutseconds)|[maxReceiveCount](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html#policies-for-dead-letter-queues)|
 
+Jump to:
+[Get Started](#get-started)
+&bull;
+[Multi-Account, Multi-Region](#multi-account-multi-region)
+&bull;
+[Terraform](#terraform)
+&bull;
+[Security](#security)
+
 ## Comparison
 
 <details>
@@ -149,9 +158,9 @@ Compare:
 [<img src="media/step-stay-stopped-aws-rds-aurora-flow-auto-thumb.png" alt="A 'Choice' state named 'If Event Not Expired Choose Database Cluster Or Instance' branches out to 'Stop Database Instance' and 'Stop Database Cluster' states. The 'Stop Database Instance' state feeds into a 'Describe Database Instances' state. The 'Describe Database Instances' and 'Stop Database Cluster' states both feed into a 'Choice' state named 'Database Status', which branches out to 'Wait' and 'Success' states. The 'Wait' state feeds back into the 'If Event Not Expired Choose Database Cluster Or Instance' state. This summarizes an error-free run." height="144" />](media/step-stay-stopped-aws-rds-aurora-flow-auto.png?raw=true "Automatically-generated state machine diagram for the Amazon Web Services Step Function solution")
 [<img src="media/stay-stopped-aws-rds-aurora-architecture-and-flow-thumb.png" alt="Relational Database Service Event Bridge events '0153' and '0154' (database started after exceeding 7-day maximum stop time) go to the main Simple Queue Service queue. The Amazon Web Services Lambda function stops the RDS instance or the Aurora cluster. If the database's status is invalid, the queue message becomes visible again in 9 minutes. A final status of 'stopping', 'deleting' or 'deleted' ends retries. This summarizes an error-free run." height="144" />](media/stay-stopped-aws-rds-aurora-architecture-and-flow.png?raw=true "Custom architecture diagram and flowchart for the Amazon Web Services Lambda solution")
 
-### Step Functions Win!
+### Step Function Wins!
 
-**The advantages of Step Functions far outweigh the disadvantages.** If you
+**The advantages of a Step Function far outweigh the disadvantages.** If you
 take the time to understand the _semantics_ of AWS APIs and build appropriate
 error-handling logic into your state machine &mdash; in other words, if your
 solution is _correct_ &mdash; then a compact, predominantly declarative

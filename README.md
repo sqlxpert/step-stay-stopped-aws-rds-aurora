@@ -154,7 +154,7 @@ details too.
 #### 4. Complex diagrams
 
 Reliably re-stopping an RDS or Aurora database &mdash; that is, avoiding
-[race conditions](https://en.wikipedia.org/wiki/Race_condition)
+[race conditions](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora#perspective)
 that might leave it running unexpectedly, at your expense &mdash; is a complex
 process. The Step Function service generates hard-to-read diagrams with tiny
 text, truncated labels, and unnecessary cross-overs. A diagram's explanatory
@@ -201,9 +201,8 @@ to document and explain your state machine. Here is my advice:
     name.
 
  4. Front-load distinguishing information to guard against truncation in
-    state machine diagrams. For example, in this pair of Boolean expressions
-    for Choice state rules, the string constants are to the left of the equals
-    sign, so that they won't be truncated:
+    state machine diagrams. For example, the important information in this pair
+    of Boolean expressions for Choice state rules comes first:
     - `'available' = states.input.DbStatus`
     - `'stopping' = states.input.DbStatus`
 
@@ -245,7 +244,7 @@ to document and explain your state machine. Here is my advice:
     - A `Comment`, if needed, should go above, between or below the keys it
       describes.
     - If similar objects are repeated, put the keys whose values distinguish
-      the objects near the top. Draw attention to the differences.
+      the objects near the top. Draw attention to differences.
 
  7. Don't hesitate to add extra Pass and Choice states so that the state names
     themselves explain the steps in a process. (Minimize the number of state

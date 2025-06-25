@@ -697,12 +697,9 @@ Resources:
             "AssignConstantsAndExtractDbIdentifierFromEvent": {
               "Type": "Pass",
               "Assign": {
-                "StepFnTaskTimeoutSeconds": ${StepFnTaskTimeoutSeconds},
-                "DoNotFollowUntilStopped": "{% '${FollowUntilStopped}' = 'false' %}",
-                "StepFnWaitSeconds": ${StepFnWaitSeconds},
-                "StepFnTimeoutMilliseconds": "{% ${StepFnTimeoutSeconds} * 1000 %}"
+                "Constant": "{% {\n  'StepFnTaskTimeoutSeconds': ${StepFnTaskTimeoutSeconds},\n  'DoNotFollowUntilStopped': 'false' = '${FollowUntilStopped}' /* CloudFormation supplies a string! */,\n  'StepFnWaitSeconds': ${StepFnWaitSeconds},\n  'StepFnTimeoutMilliseconds': ${StepFnTimeoutSeconds} * 1000\n} %}"
               },
-              "Comment": "FollowUntilStopped CloudFormation parameter is string",
+              "Comment": "Process JSON state machine definition with CloudFormation Fn::Sub to resolve constants",
               "Output": "{% {\n  'Event': $states.input,\n  'Date': $states.input.detail.Date,\n  'SourceIdentifier': $states.input.detail.SourceIdentifier,\n  'SourceTypeWord': $split($states.input.detail.SourceType,'_')[-1]\n  /* Last word of 'CLUSTER' (Aurora) or 'DB_INSTANCE' (RDS) */\n} %}",
               "Next": "IfEventNotExpiredChooseDbClusterOrInstance"
             },
@@ -710,7 +707,7 @@ Resources:
               "Type": "Choice",
               "Choices": [
                 {
-                  "Condition": "{% $toMillis($states.input.Date) < ( $millis() - $StepFnTimeoutMilliseconds ) %}",
+                  "Condition": "{% $toMillis($states.input.Date) < ( $millis() - $Constant.StepFnTimeoutMilliseconds ) %}",
                   "Output": "{% $merge([\n  $states.input,\n  {'Error': 'EventExpired'}\n]) %}",
                   "Next": "Fail"
                 },
@@ -732,7 +729,7 @@ Resources:
               "Arguments": {
                 "DbClusterIdentifier": "{% $states.input.SourceIdentifier %}"
               },
-              "TimeoutSeconds": "{% $StepFnTaskTimeoutSeconds %}",
+              "TimeoutSeconds": "{% $Constant.StepFnTaskTimeoutSeconds %}",
               "Catch": [
                 {
                   "ErrorEquals": [
@@ -759,7 +756,7 @@ Resources:
               "Arguments": {
                 "DbInstanceIdentifier": "{% $states.input.SourceIdentifier %}"
               },
-              "TimeoutSeconds": "{% $StepFnTaskTimeoutSeconds %}",
+              "TimeoutSeconds": "{% $Constant.StepFnTaskTimeoutSeconds %}",
               "Catch": [
                 {
                   "ErrorEquals": [
@@ -791,8 +788,8 @@ Resources:
               "Choices": [
                 {
                   "Condition": "{% $contains($states.input.Cause, 'aurora') and $contains($states.input.Cause, 'not eligible for stopping') %}",
-                  "Comment": "InvalidParameterCombination. Occurs only in test mode. RDS-EVENT-0088 database instance non-forced start is indistinguishable for RDS (accepted) and Aurora (ignored in favor of RDS-EVENT-0151 database cluster non-forced start).",
-                  "Output": "{% $merge([\n  $states.input,\n  {'Info': 'StopAuroraClusterNotInstance'}\n]) %}",
+                  "Comment": "Aurora: stop cluster, not instances. This InvalidParameterCombination occurs only in test mode. RDS-EVENT-0088 database instance non-forced start is indistinguishable for RDS (accepted) and Aurora (ignored in favor of RDS-EVENT-0151 for cluster).",
+                  "Output": "{% $merge([\n  $states.input,\n  {'Info': 'StopAuroraClusterNotInstances'}\n]) %}",
                   "Next": "Succeed"
                 }
               ],
@@ -804,7 +801,7 @@ Resources:
               "Arguments": {
                 "DbInstanceIdentifier": "{% $states.input.SourceIdentifier %}"
               },
-              "TimeoutSeconds": "{% $StepFnTaskTimeoutSeconds %}",
+              "TimeoutSeconds": "{% $Constant.StepFnTaskTimeoutSeconds %}",
               "Catch": [
                 {
                   "ErrorEquals": [
@@ -836,7 +833,7 @@ Resources:
               "Type": "Choice",
               "Choices": [
                 {
-                  "Condition": "{% $DoNotFollowUntilStopped %}",
+                  "Condition": "{% $Constant.DoNotFollowUntilStopped %}",
                   "Next": "Succeed"
                 }
               ],
@@ -844,7 +841,7 @@ Resources:
             },
             "Wait": {
               "Type": "Wait",
-              "Seconds": "{% $StepFnWaitSeconds %}",
+              "Seconds": "{% $Constant.StepFnWaitSeconds %}",
               "Next": "IfEventNotExpiredChooseDbClusterOrInstance"
             },
             "Fail": {

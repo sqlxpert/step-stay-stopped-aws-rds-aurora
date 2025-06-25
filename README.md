@@ -4,9 +4,11 @@ _Keep AWS databases stopped when not needed, with a Step Function_
 
 ## Purpose
 
-This is a low-code, AWS Step Function-based alternative to my AWS Lambda-based
-tool for stopping RDS and Aurora databases that AWS has automatically started
-after the 7-day maximum stop period. Both use the same reliable algorithm.
+This is a low-code, Step Function-based alternative to my Lambda-based tool for
+stopping RDS and Aurora databases that AWS has automatically started after the
+7-day maximum stop period. Both use the same reliable process, free of
+[race conditions](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora#perspective)
+that might leave databases running without warning.
 
 Jump to:
 [Get Started](#get-started)
@@ -16,30 +18,42 @@ Jump to:
 [Terraform](#terraform)
 &bull;
 [Security](#security)
+
+### Diagram
+
+Click to view the simplified flowchart:
+
+[<img src="media/stay-stopped-aws-rds-aurora-flow-simple.png" alt="Call to stop the Relational Database Service or Aurora database. Case 1: If the stop request succeeds, retry. Case 2: If the Aurora cluster is in an invalid state, parse the error message to get the status. Case 3: If the RDS instance is in an invalid state, get the status by calling to describe the RDS instance. Exit if the database status from Case 2 or 3 is 'stopped' or another final status. Otherwise, retry every 9 minutes, for 24 hours." height="144" />](media/stay-stopped-aws-rds-aurora-flow-simple.png?raw=true "Simplified flowchart for [Step-]Stay Stopped, RDS and Aurora!")
+
+### Use Cases
+
+- testing
+- development
+- infrequent reference
+- old databases kept just in case
+- vacation or leave beyond one week
+
+If it would cost too much to keep a database running but take too long to
+re-create it, this tool might save you money, time, or both. AWS does not
+charge for database instance hours while an
+[RDS database instance is stopped](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_StopInstance.html#USER_StopInstance.Benefits)
+or an
+[Aurora database cluster is stopped](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-cluster-stop-start.html#aurora-cluster-start-stop-overview).
+(Other charges, such as for storage and snapshots, continue.)
+
+## Comparison
 
 ||Step Function (here)|Lambda|
 |---:|:---:|:---:|
 |github.com/sqlxpert/|[step-stay-stopped-aws-rds-aurora](https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora)|[stay-stopped-aws-rds-aurora](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora#stay-stopped-rds-and-aurora)|
 |Status|Experimental|Supported|
-|Lines of code|&asymp;&nbsp;170|&asymp;&nbsp;333|
-|[EventBridge rule](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-rules.html) target|Step Function|SQS queue, to Lambda function|
-|Event and response transformation|[JSONata](https://docs.jsonata.org)|Python|
+|[EventBridge rule](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-rules.html) target|Step Function|SQS queue, which feeds <wbr/>Lambda function|
+|Length|&asymp;&nbsp;170 JSON/[JSONata](https://docs.jsonata.org) lines|&asymp;&nbsp;333 Python lines|
 |API calls|[AWS SDK integration](https://docs.aws.amazon.com/step-functions/latest/dg/supported-services-awssdk.html)|[boto3 RDS client](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds.html)|
 |Decisions and branching|[Choice states](https://docs.aws.amazon.com/step-functions/latest/dg/state-choice.html)|Python control flow statements|
 |Error handling|[Catchers](https://docs.aws.amazon.com/step-functions/latest/dg/concepts-error-handling.html#error-handling-fallback-states) on task states|`try`...`except`|
 |Retry mechanism|[Wait state](https://docs.aws.amazon.com/step-functions/latest/dg/state-wait.html)|[Queue message [in]visibility&nbsp;timeout](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html)|
 |Timeout mechanism|[State machine TimeoutSeconds](https://docs.aws.amazon.com/step-functions/latest/dg/statemachine-structure.html#statemachinetimeoutseconds)|[maxReceiveCount](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html#policies-for-dead-letter-queues)|
-
-Jump to:
-[Get Started](#get-started)
-&bull;
-[Multi-Account, Multi-Region](#multi-account-multi-region)
-&bull;
-[Terraform](#terraform)
-&bull;
-[Security](#security)
-
-## Comparison
 
 <details>
   <summary>Step Function advantages and disadvantages...</summary>
@@ -67,18 +81,23 @@ call AWS Lambda functions, many problems can be solved without recourse to
 Lambda, so that there is no software to patch &mdash; not even a runtime to
 update every few months.
 
-#### 3. Low cost
+#### 3. Even lower compute cost
 
 Step Functions are perfect for processes that require lots of wall-clock time
 but little actual computing time, such as waiting for a database to start and
 then seeing a stop request through until the database is stopped again.
 The
 [Step Function standard mode price is 25&cent; per 10,000 transitions](https://aws.amazon.com/step-functions/pricing/#AWS_Step_Functions_Standard_Workflow_State_transitions_pricing)
-(arrows traversed, on the state machine diagram), regardless of time spent. To
-put this in perspective, if we ignore the negligible number of initial and
-final state transitions, a cycle of no more than 5 state transitions repeats
-every 9 minutes from the time AWS starts a database until the database is
-stopped again. Prices vary by region, and might change.
+(arrows traversed, on the state machine diagram), regardless of time spent
+(the pricing basis for AWS Lambda). To put this in perspective, if we ignore
+negligible numbers of startup and shutdown transitions, a cycle of 4 to 5 state
+transitions repeats every 9 minutes from the time AWS starts a database until
+the database is stopped again.
+
+Step Function logs tend to be noisier, as explained below, so volume-sensitive
+logging costs could be higher.
+
+Prices vary by region, and might change.
 
 ### Step Function Disadvantages
 
@@ -155,12 +174,14 @@ details too.
 
 Reliably re-stopping an RDS or Aurora database &mdash; that is, avoiding
 [race conditions](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora#perspective)
-that might leave it running unexpectedly, at your expense &mdash; is a complex
-process. The Step Function service generates hard-to-read diagrams with tiny
-text, truncated labels, and unnecessary cross-overs. A diagram's explanatory
-value falls off as soon as you add error-handling logic to your state machine.
-This is more a missed opportunity than a disadvantage; with a different
-service, you'd have to create your own diagram.
+that might leave the database running at your expense, without warning you
+&mdash; is a complex process. The Step Functions console generates hard-to-read
+diagrams with tiny text, truncated labels, and unnecessary cross-overs. A
+diagram's explanatory value falls off as soon as you add error-handling logic
+to your state machine. This is more a missed opportunity than a disadvantage.
+Other services give you no diagram, so you have to make your own. The Step
+Functions console gives you a bad diagram that you can't edit, so you still
+have to make your own.
 
 Compare:
 
@@ -355,10 +376,10 @@ entirely at your own risk. You are encouraged to review the source code.
   consume messages from EventBridge. Encryption in transit is required.
 
 - Optional encryption at rest with the AWS Key Management System, for the
-  error queue, the Step Function state machine, and the log. This can protect
-  EventBridge events containing database identifiers and metadata, such as
-  tags. KMS keys housed in a different AWS account, and multi-region keys, are
-  supported.
+  error queue, Step Function state machine payloads, and the log. This can
+  protect EventBridge events containing database identifiers and metadata, such
+  as tags. KMS keys housed in a different AWS account, and multi-region keys,
+  are supported.
 
 - A retry mechanism and a state machine timeout, to increase the likelihood
   that a database will be stopped as intended but prevent endless retries.
@@ -453,8 +474,8 @@ these parameters in CloudFormation:
 |`StepFnTimeoutSeconds`|`86400`|`1800`|
 |&rarr; _Equivalent in hours_|_24 hours_|_&frac12; hour_|
 
-Given the operational and security risks explained below, **&#9888; exit test
-mode as quickly as possible**. If your test database is ready, several minutes
+**&#9888; Exit test mode as quickly as possible**, given the operational and
+security risks explained below. If your test database is ready, several minutes
 should be sufficient.
 
 ### Test by Manually Starting a Database

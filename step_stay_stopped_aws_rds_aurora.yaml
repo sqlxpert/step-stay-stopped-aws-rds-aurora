@@ -823,7 +823,7 @@ Resources:
                   "Next": "Fail"
                 },
                 {
-                  "Condition": "{% (('stopping' = $states.input.DbStatus) and $DoNotFollowUntilStopped) or ($states.input.DbStatus in ['stopped', 'deleting', 'deleted']) %}",
+                  "Condition": "{% (('stopping' = $states.input.DbStatus) and $Constant.DoNotFollowUntilStopped) or ($states.input.DbStatus in ['stopped', 'deleting', 'deleted']) %}",
                   "Next": "Succeed"
                 }
               ],

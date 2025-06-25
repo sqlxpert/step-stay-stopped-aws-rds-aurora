@@ -48,7 +48,7 @@ or an
 |github.com/sqlxpert/|[step-stay-stopped-aws-rds-aurora](https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora)|[stay-stopped-aws-rds-aurora](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora#stay-stopped-rds-and-aurora)|
 |Status|Experimental|Supported|
 |[EventBridge rule](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-rules.html) target|Step Function|SQS queue, which feeds <wbr/>Lambda function|
-|Length|&asymp;&nbsp;170 JSON/[JSONata](https://docs.jsonata.org) lines|&asymp;&nbsp;333 Python lines|
+|Lines of code|**&lt;&nbsp;200** JSON/[JSONata](https://docs.jsonata.org) lines|**&gt;&nbsp;300** Python lines|
 |API calls|[AWS SDK integration](https://docs.aws.amazon.com/step-functions/latest/dg/supported-services-awssdk.html)|[boto3 RDS client](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds.html)|
 |Decisions and branching|[Choice states](https://docs.aws.amazon.com/step-functions/latest/dg/state-choice.html)|Python control flow statements|
 |Error handling|[Catchers](https://docs.aws.amazon.com/step-functions/latest/dg/concepts-error-handling.html#error-handling-fallback-states) on task states|`try`...`except`|
@@ -56,23 +56,32 @@ or an
 |Timeout mechanism|[State machine TimeoutSeconds](https://docs.aws.amazon.com/step-functions/latest/dg/statemachine-structure.html#statemachinetimeoutseconds)|[maxReceiveCount](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html#policies-for-dead-letter-queues)|
 
 <details>
-  <summary>Step Function advantages and disadvantages...</summary>
+  <summary>If you have time, don't miss: Step Function advantages and disadvantages...</summary>
 
 ### Step Function Advantages
 
 #### 1. Faster development, testing and debugging
 
-Quite frankly, it is a miracle that **170 lines of JSON can replace 333 lines
-of executable Python** code. Development is significantly faster, whether you
-add states visually or you write or edit the JSON code manually.
+Quite frankly, it is a miracle that **fewer than 200 lines of JSON can replace
+more than 300 lines of executable Python** code. Development is significantly
+faster, whether you add states visually or you compose or edit the JSON code
+manually.
 
 Testing and debugging are moderately faster. Although a correct state machine,
 able to handle error conditions, is liable to be more complex than the
 initial, normal-case design, even a complex state machine diagram becomes
-readable when it's marked up with the traversal from a particular run. The
-full log, viewed inside the Step Functions console, shows data at the start
-and end of each state traversed, as well as data available for use in between,
-such as API responses.
+readable when the Step Functions console marks it up with the traversal from a
+particular run. Click below to view an example. Then, click to view the "State
+View", a tabular summary. Not shown is the "Event View", a complete log of
+state data at the start and end of each state, plus data available for use
+within the scope of one state (such as API responses).
+
+[<img src="media/step-function-debug-flow.png" alt="A 'Pass' state assigns constants and extracts the database identifier from the event. Next, a 'Choice' state chooses between database cluster or instance, if the event has not expired. Because this event is for a database instance, a 'Task' state that calls 'Stop Database Instance' is entered. The other states described are green, whereas this one is yellow. From an arrow labeled 'Catch #1', execution continues with a 'Task' state that calls 'Describe Database Instances' followed by a 'Choice' state that chooses between different database status values. Because the database is in the desired state, the 'Succeed' state is entered." height="144" />](media/step-function-debug-flow.png?raw=true "Automatically-generated Step Function state machine execution diagram")
+
+[<img src="media/step-function-debug-list.png" alt="The 'State view' for one execution of a Step Function state machine has columns for state 'Name', state 'Type', exit 'Status', 'Resource' used, state 'Duration', and portion of the execution's linear 'Timeline'. This execution traverses 6 states. Notably, the 'Stop Database Instance' state exits with a caught error. Next, the 'Describe Database Instances' state succeeds. Execution ends in the 'Succeed' state." height="144" />](media/step-function-debug-list.png?raw=true "Step Function state machine execution state list view")
+
+This example shows an idempotence test: trying to stop an RDS database instance
+that was already stopping or stopped.
 
 #### 2. Less maintenance
 

@@ -47,7 +47,7 @@ or an
 |---:|:---:|:---:|
 |github.com/sqlxpert/|[**step**-stay-stopped-aws-rds-aurora](https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora)|[stay-stopped-aws-rds-aurora](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora#stay-stopped-rds-and-aurora)|
 |Status|Experimental|Supported|
-|[EventBridge rule](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-rules.html) target|Step Function|SQS queue, which feeds <wbr/>Lambda function|
+|[EventBridge rule](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-rules.html) target|Step Function|SQS queue, which feeds Lambda&nbsp;function|
 |Lines of code|**&lt;&nbsp;200** JSON/[JSONata](https://docs.jsonata.org) lines|**&gt;&nbsp;300** Python lines|
 |API calls|[AWS SDK integration](https://docs.aws.amazon.com/step-functions/latest/dg/supported-services-awssdk.html)|[boto3 RDS client](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds.html)|
 |Decisions and branching|[Choice states](https://docs.aws.amazon.com/step-functions/latest/dg/state-choice.html)|Python control flow statements|

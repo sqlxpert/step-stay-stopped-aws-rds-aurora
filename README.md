@@ -71,10 +71,10 @@ Testing and debugging are moderately faster. Although a correct state machine,
 able to handle error conditions, is liable to be more complex than the
 initial, normal-case design, even a complex state machine diagram becomes
 readable when the Step Functions console marks it up with the traversal from a
-particular run. Click below to view an example. Then, click to view the "State
-View", a tabular summary. Not shown is the "Event View", a complete log of
-state data at the start and end of each state, plus data available for use
-within the scope of one state (such as API responses).
+particular run. Click below to view an example. Next, click for the "State
+View", a tabular summary. Not shown is the "Event View", a complete log of the
+payload at the start and end of each state, plus data available for use within
+the scope of one state (such as an API response).
 
 [<img src="media/step-function-debug-flow.png" alt="A 'Pass' state assigns constants and extracts the database identifier from the event. Next, a 'Choice' state chooses between database cluster or instance, if the event has not expired. Because this event is for a database instance, a 'Task' state that calls 'Stop Database Instance' is entered. The other states described are green, whereas this one is yellow. From an arrow labeled 'Catch #1', execution continues with a 'Task' state that calls 'Describe Database Instances' followed by a 'Choice' state that chooses between different database status values. Because the database is in the desired state, the 'Succeed' state is entered." height="144" />](media/step-function-debug-flow.png?raw=true "Automatically-generated Step Function state machine execution diagram")
 
@@ -99,7 +99,7 @@ The
 [Step Function standard mode price is 25&cent; per 10,000 transitions](https://aws.amazon.com/step-functions/pricing/#AWS_Step_Functions_Standard_Workflow_State_transitions_pricing)
 (arrows traversed, on the state machine diagram), regardless of time spent
 (the pricing basis for AWS Lambda). To put this in perspective, if we ignore
-negligible numbers of startup and shutdown transitions, a cycle of 4 to 5 state
+negligible numbers of startup and shutdown transitions, a cycle of 3 to 5 state
 transitions repeats every 9 minutes from the time AWS starts a database until
 the database is stopped again.
 

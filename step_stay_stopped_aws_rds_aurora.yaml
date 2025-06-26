@@ -325,8 +325,9 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: states:StartExecution
-                Resource: !GetAtt StepStayStoppedRdsAuroraStepFn.Arn
+                Resource: !GetAtt StepFn.Arn
 
+        # https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-key-management.html#send-to-encrypted-queue
         - Fn::If:
             - SqsKmsKeyCustom
             - PolicyName: SqsKmsEncryptNoteComplementsQueuePolicy
@@ -335,16 +336,15 @@ Resources:
                 Statement:
                   - Effect: Allow
                     Action:
-                      # https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-key-management.html#send-to-encrypted-queue
                       - kms:GenerateDataKey
                       - kms:Decrypt  # To verify a new data key!
                     Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${SqsKmsKey}"
                     Condition:
-                      StringEquals: { "kms:ViaService": !Sub "sqs.${AWS::Region}.amazonaws.com" }
+                      StringEquals:
+                        "kms:ViaService":
+                          !Sub "sqs.${AWS::Region}.amazonaws.com"
             - !Ref AWS::NoValue
 
-  # Administrator: Restrict iam:PassRole to prevent use with arbitrary AWS
-  # Step Functions.
   StepFnRole:
     Type: AWS::IAM::Role
     Properties:
@@ -355,6 +355,10 @@ Resources:
           - Effect: Allow
             Principal: { Service: states.amazonaws.com }
             Action: sts:AssumeRole
+            Condition:
+              ArnEquals:
+                "aws:SourceArn":
+                  !Sub "arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${AWS::StackName}-StepFn"
       ManagedPolicyArns:
         - Fn::If:
             - StepFnRoleAttachLocalPolicyNameBlank
@@ -411,8 +415,8 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource: !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:${StepFnLogGrp}:log-stream:*"
-                # !GetAtt StepFnLogGrp.Arn ends with :* instead of allowing us
-                # to append :log-stream:* to make a log stream ARN
+                # ${StepFnLogGrp.Arn} ends with :* instead of allowing us to
+                # append :log-stream:* to make a log stream ARN
 
         - PolicyName: RdsRead
           PolicyDocument:
@@ -441,23 +445,26 @@ Resources:
                   - !Sub "arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:db:*"
                   - !Sub "arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:cluster:*"
 
+        # https://docs.aws.amazon.com/step-functions/latest/dg/encryption-at-rest.html#encrypt-logs
         - Fn::If:
             - StepFnKmsKeyBlank
             - !Ref AWS::NoValue
-            - PolicyName: StepFnCloudWatchLogsKmsEncryptNoteComplementsQueuePolicy
+            - PolicyName: StepFnKmsDecryptForCloudWatchLogsNoteComplementsKeyPolicy
               PolicyDocument:
                 Version: "2012-10-17"
                 Statement:
                   - Effect: Allow
                     Action:
-                      # https://docs.aws.amazon.com/step-functions/latest/dg/encryption-at-rest.html#encrypt-logs
                       - kms:GenerateDataKey
                     Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${StepFnKmsKey}"
                     Condition:
                       StringEquals:
                         "kms:EncryptionContext:SourceArn":
                           !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*"
+                          # No need for StringLike! Per CloudTrail, the literal
+                          # EncryptionContext ends in :*
 
+        # https://docs.aws.amazon.com/step-functions/latest/dg/encryption-at-rest.html#create-state-machine
         - Fn::If:
             - StepFnKmsKeyBlank
             - !Ref AWS::NoValue
@@ -467,16 +474,20 @@ Resources:
                 Statement:
                   - Effect: Allow
                     Action:
-                      # https://docs.aws.amazon.com/step-functions/latest/dg/encryption-at-rest.html#create-state-machine
                       - kms:GenerateDataKey
                       - kms:Decrypt
                     Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${StepFnKmsKey}"
                     Condition:
                       StringEquals:
                         "kms:EncryptionContext:aws:states:stateMachineArn":
-                          !Sub "arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:StepStayStoppedRdsAuroraStepFn-*"
-                          # Step Function name prefix, to avoid a circular
-                          # dependency
+                          !Sub "arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${AWS::StackName}-StepFn"
+                          # KMS and Step Functions documentation recommends
+                          # String operators.
+                          # https://docs.aws.amazon.com/kms/latest/developerguide/conditions-kms.html#conditions-kms-encryption-context
+                          # https://docs.aws.amazon.com/step-functions/latest/dg/encryption-at-rest.html#create-state-machine
+                          # Documentation for some other services recommends
+                          # Arn operators.
+                          # https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html#cmk-permissions
 
   # https://docs.aws.amazon.com/step-functions/latest/dg/cw-logs.html#cloudwatch-iam-policy
   # https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/AWS-logs-and-resource-policy.html#AWS-logs-infrastructure-CWL
@@ -566,10 +577,10 @@ Resources:
           - !Sub >-
               RDS-EVENT-0153 forced Aurora database cluster start after 7 days,
               plus RDS-EVENT-0151 non-forced start for TEMPORARY TESTING,
-              to ${StepStayStoppedRdsAuroraStepFn.Name}
+              to ${StepFn.Name}
           - !Sub >-
               RDS-EVENT-0153 forced Aurora database cluster start after 7 days,
-              to ${StepStayStoppedRdsAuroraStepFn.Name}
+              to ${StepFn.Name}
       EventPattern:
         source: [ aws.rds ]
         detail-type: [ RDS DB Cluster Event ]
@@ -593,9 +604,9 @@ Resources:
                 # - null
         version: [ "0" ]
       Targets:
-        - Id: !GetAtt StepStayStoppedRdsAuroraStepFn.Name
+        - Id: !GetAtt StepFn.Name
           RoleArn: !GetAtt ExecuteStepFnRole.Arn
-          Arn: !GetAtt StepStayStoppedRdsAuroraStepFn.Arn
+          Arn: !GetAtt StepFn.Arn
           RetryPolicy:
             MaximumRetryAttempts: 10
             MaximumEventAgeInSeconds: 300  # 5 minutes
@@ -612,10 +623,10 @@ Resources:
               RDS-EVENT-0154 forced RDS database instance start after 7 days,
               plus RDS-EVENT-0088 non-forced start (ignored for instances in
               Aurora clusters) for TEMPORARY TESTING,
-              to ${StepStayStoppedRdsAuroraStepFn.Name}
+              to ${StepFn.Name}
           - !Sub >-
               RDS-EVENT-0154 forced RDS database instance start after 7 days,
-              to ${StepStayStoppedRdsAuroraStepFn.Name}
+              to ${StepFn.Name}
       EventPattern:
         source: [ aws.rds ]
         detail-type: [ RDS DB Instance Event ]
@@ -645,9 +656,9 @@ Resources:
                 # - null
         version: [ "0" ]
       Targets:
-        - Id: !GetAtt StepStayStoppedRdsAuroraStepFn.Name
+        - Id: !GetAtt StepFn.Name
           RoleArn: !GetAtt ExecuteStepFnRole.Arn
-          Arn: !GetAtt StepStayStoppedRdsAuroraStepFn.Arn
+          Arn: !GetAtt StepFn.Arn
           RetryPolicy:
             MaximumRetryAttempts: 10
             MaximumEventAgeInSeconds: 300  # 5 minutes
@@ -684,14 +695,17 @@ Resources:
           - !Ref AWS::NoValue
           - !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${CloudWatchLogsKmsKey}"
 
-  # Prefix logical name with SuggestedStackName because CloudFormation does not
-  # prefix state machine names with StackName, and overriding StateMachineName
-  # would hamper updates.
-  # https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-stepfunctions-statemachine.html#cfn-stepfunctions-statemachine-statemachinename
-  StepStayStoppedRdsAuroraStepFn:
+  StepFn:
     Type: AWS::StepFunctions::StateMachine
     DependsOn: StepFnLogGrpPol
     Properties:
+      StateMachineName: !Sub "${AWS::StackName}-StepFn"
+      # N.B.: If CloudFormation determines StateMachineName, it does not
+      # prefix the logical name with "StackName-", the way it does for most
+      # other resource types. Overriding StateMachineName gives a known ARN,
+      # allowing for stricter IAM policies, but does complicate updates that
+      # require replacement.
+      # https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-stepfunctions-statemachine.html#cfn-stepfunctions-statemachine-statemachinename
       EncryptionConfiguration:
         Fn::If:
           - StepFnKmsKeyBlank

@@ -835,8 +835,8 @@ Resources:
             "Wait": {
               "Type": "Wait",
               "Seconds": "{% $Constant.StepFnWaitSeconds %}",
-              "Output": "{% $states.input ~> |$|{}, ['Error', 'Cause']| %}",
-              "Comment": "Deletes any past error",
+              "Output": "{% $states.input ~> |$|{}, ['DbStatus', 'Error', 'Cause']| %}",
+              "Comment": "Deletes possibly-stale status, and any past error",
               "Next": "IfEventNotExpiredChooseDbClusterOrInstance"
             },
             "Fail": {

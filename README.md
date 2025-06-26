@@ -376,6 +376,10 @@ entirely at your own risk. You are encouraged to review the source code.
 
 - A least-privilege role for the AWS Step Function.
 
+- A Step Function role that cannot be used by arbitrary functions. If the role
+  is passed to an arbitrary Step Function, Task states will not gain access to
+  the AWS API.
+
 - A least-privilege queue policy. The error (dead letter) queue can only
   consume messages from EventBridge. Encryption in transit is required.
 
@@ -403,8 +407,7 @@ entirely at your own risk. You are encouraged to review the source code.
 
 - Log infrastructure changes using CloudTrail, and set up alerts.
 
-- Prevent people from directly invoking the Step Function and from passing
-  the function role to arbitrary functions.
+- Prevent people from directly invoking the Step Function.
 
 - Separate production workloads. Although this tool only stops databases that
   _AWS_ is starting after they've been stopped for 7 days, the Step Function
@@ -502,7 +505,7 @@ Internally, the code ignores it in favor of the cluster-level event.
 ### Test by Invoking the Step Function
 
 Depending on locally-determined permissions, you may also be able to invoke
-the `StepStayStopped`
+the `StepStayStoppedRdsAurora-StepFn`
 [Step Function](https://console.aws.amazon.com/states/home#/statemachines)
 manually. Edit the database names and date/time strings (must be within the
 past `StepFnTimeoutSeconds` and end in `Z` for

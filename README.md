@@ -391,8 +391,8 @@ entirely at your own risk. You are encouraged to review the source code.
 - A 24-hour event date/time expiry check, to prevent processing of accumulated
   stale events, if any.
 
-- Readable Identity and Access Management policies, formatted as
-  CloudFormation YAML rather than JSON, and broken down into discrete
+- Readable Identity and Access Management policies, formatted as CloudFormation
+  YAML rather than JSON (where permitted), and broken down into discrete
   statements by service, resource or principal.
 
 ### Your Security Steps

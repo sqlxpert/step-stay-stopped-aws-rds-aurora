@@ -488,7 +488,29 @@ Resources:
       # https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/intrinsic-function-reference-ToJsonString.html
       # but prefer to avoid a CloudFormation transform, because it would make
       # stack updates difficult.
-      PolicyDocument: !Sub "{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [{\n    \"Effect\": \"Allow\",\n    \"Principal\": { \"Service\": \"delivery.logs.amazonaws.com\" },\n    \"Action\": [\n      \"logs:CreateLogStream\",\n      \"logs:PutLogEvents\"\n    ],\n    \"Resource\": [\n      \"arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:${StepFnLogGrp}:log-stream:*\"\n    ],\n    \"Condition\": {\n      \"StringEquals\": {\n        \"aws:SourceAccount\": \"${AWS::AccountId}\"\n      },\n      \"ArnLike\": {\n        \"aws:SourceArn\": \"arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*\"\n      }\n    }\n  }]\n}"
+      PolicyDocument: !Sub >
+        {
+          "Version": "2012-10-17",
+          "Statement": [{
+            "Effect": "Allow",
+            "Principal": { "Service": "delivery.logs.amazonaws.com" },
+            "Action": [
+              "logs:CreateLogStream",
+              "logs:PutLogEvents"
+            ],
+            "Resource": [
+              "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:${StepFnLogGrp}:log-stream:*"
+            ],
+            "Condition": {
+              "StringEquals": {
+                "aws:SourceAccount": "${AWS::AccountId}"
+              },
+              "ArnLike": {
+                "aws:SourceArn": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*"
+              }
+            }
+          }]
+        }
       # ${StepFnLogGrp.Arn} ends with :* instead of allowing us to append
       # :log-stream:* to make a log stream ARN
 

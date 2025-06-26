@@ -244,20 +244,15 @@ to document and explain your state machine. Here is my advice:
     - Add a comment if a term cannot be used in searches. Search features don't
       allow, or don't do a good job with: symbols; the definite article "the";
       other short "stop-words"; and words with two or more popular meanings.
-      For example, this JSONata expression:
+      For example, without the comment, this JSONata expression:
 
       ```jsonata
-      $states.input ~> | $ | {}, ['Error', 'Cause'] |
+      $states.input ~> |$|{}, ['Error', 'Cause']| /* https://docs.jsonata.org/other-operators#-------transform */
       ```
 
-      gives no clue about what to search for. It is impossible to search for
-      `$`, `{}`, or `|`, and probably for `~>` too. So, I add an in-line
-      comment explaining what the expression accomplishes, and I provide a
-      link to the description of the cryptic operator:
-
-      ```jsonata
-      /* Delete any past error; https://docs.jsonata.org/other-operators#-------transform */
-      ```
+      would give no clue about what to search for. It is impossible to search
+      for `|` or `$`, and probably for `~>` too. I would make sure at least one
+      occurrence received a comment.
 
  6. Although a JSON object's keys form a set, and sets are unordered, changing
     the order of the keys in a state machine's JSON definition code after the

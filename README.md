@@ -77,7 +77,7 @@ View", a tabular summary. Not shown is the "Event View", a complete log of the
 payload at the start and end of each state, plus data available for use within
 the scope of one state (such as an API response).
 
-[<img src="media/step-function-debug-flow.png" alt="A 'Pass' state assigns constants and extracts the database identifier from the event. After a 'Wait' state, a 'Choice' state chooses between cluster or instance, if the event has not expired. Because this event is for a database instance, a 'Task' state that calls 'Stop Database Instance' is entered. The other states described are green, whereas this one is yellow. From an arrow labeled 'Catch #1', execution continues with a 'Task' state that calls 'Describe Database Instances' followed by a 'Choice' state that chooses between different database status values. Because the database is in the desired state, the 'Succeed' state is entered." height="144" />](media/step-function-debug-flow.png?raw=true "Automatically-generated Step Function state machine execution diagram")
+[<img src="media/step-function-debug-flow-follow-true.png" alt="A 'Pass' state assigns constants and extracts the database identifier from the event. After a 'Wait' state, a 'Choice' state chooses between cluster or instance, if the event has not expired. Because this event is for a database instance, a 'Task' state that calls 'Stop Database Instance' is entered. The other states described are green, whereas this one is yellow. From an arrow labeled 'Catch #1', execution continues with a 'Task' state that calls 'Describe Database Instances' followed by a 'Choice' state that chooses between different database status values. Because the database is in the desired state, the 'Succeed' state is entered." height="144" />](media/step-function-debug-flow-follow-true.png?raw=true "Automatically-generated Step Function state machine execution diagram")
 
 [<img src="media/step-function-debug-list.png" alt="The table for one execution of a Step Function state machine has columns for state 'Name', state 'Type', and exit 'Status'. This execution traverses 7 states. Notably, the 'Stop Database Instance' state exits with a caught error. Next, the 'Describe Database Instances' state succeeds. Execution ends in the 'Succeed' state." height="144" />](media/step-function-debug-list.png?raw=true "Step Function state machine execution state list view")
 
@@ -100,9 +100,9 @@ The
 [Step Function standard mode price is 25&cent; per 10,000 transitions](https://aws.amazon.com/step-functions/pricing/#AWS_Step_Functions_Standard_Workflow_State_transitions_pricing)
 (arrows traversed, on the state machine diagram), regardless of time spent
 (the pricing basis for AWS Lambda). To put this in perspective, if we ignore
-negligible numbers of startup and shutdown transitions, a cycle of 3 to 5 state
-transitions repeats every 9 minutes from the time AWS starts a database until
-the database is stopped again.
+negligible numbers of startup and shutdown transitions, a cycle of 4 (Aurora)
+or 5 (RDS) state transitions repeats every 9 minutes from the time AWS starts a
+database until the database is stopped again.
 
 Step Function logs tend to be noisier, as explained below, so volume-sensitive
 logging costs could be higher.
@@ -195,7 +195,7 @@ have to make your own.
 
 Compare:
 
-[<img src="media/step-stay-stopped-aws-rds-aurora-flow-auto-thumb.png" alt="A 'Choice' state named 'If Event Not Expired Choose Database Cluster Or Instance' branches out to 'Stop Database Instance' and 'Stop Database Cluster' states. The 'Stop Database Instance' state feeds into a 'Describe Database Instances' state. The 'Describe Database Instances' and 'Stop Database Cluster' states both feed into a 'Choice' state named 'Database Status', which branches out to 'Wait' and 'Success' states. The 'Wait' state feeds back into the 'If Event Not Expired Choose Database Cluster Or Instance' state. This summarizes an error-free run." height="144" />](media/step-stay-stopped-aws-rds-aurora-flow-auto.png?raw=true "Automatically-generated state machine diagram for the Amazon Web Services Step Function solution")
+[<img src="media/step-stay-stopped-aws-rds-aurora-flow-auto-follow-true-thumb.png" alt="A 'Choice' state named 'If Event Not Expired Choose Database Cluster Or Instance' branches out to 'Stop Database Instance' and 'Stop Database Cluster' states. The 'Stop Database Instance' state feeds into a 'Describe Database Instances' state. The 'Describe Database Instances' and 'Stop Database Cluster' states both feed into a 'Choice' state named 'Database Status', which branches out to 'Wait' and 'Success' states. The 'Wait' state feeds back into the 'If Event Not Expired Choose Database Cluster Or Instance' state. This summarizes an error-free run." height="144" />](media/step-stay-stopped-aws-rds-aurora-flow-auto-follow-true.png?raw=true "Automatically-generated state machine diagram for the Amazon Web Services Step Function solution")
 [<img src="media/stay-stopped-aws-rds-aurora-architecture-and-flow-thumb.png" alt="Relational Database Service Event Bridge events '0153' and '0154' (database started after exceeding 7-day maximum stop time) go to the main Simple Queue Service queue, where messages are initially delayed 9 minutes. The Amazon Web Services Lambda function stops the RDS instance or the Aurora cluster. If the database's status is invalid, the queue message becomes visible again in 9 minutes. A final status of 'stopping', 'deleting' or 'deleted' ends retries. This summarizes an error-free run." height="144" />](media/stay-stopped-aws-rds-aurora-architecture-and-flow.png?raw=true "Custom architecture diagram and flowchart for the Amazon Web Services Lambda solution")
 
 ### The Step Function Wins!

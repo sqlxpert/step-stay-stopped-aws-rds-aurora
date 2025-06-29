@@ -2,18 +2,25 @@
   "Comment": "Stop AWS RDS and Aurora databases after the forced 7th-day start",
   "QueryLanguage": "JSONata",
   "TimeoutSeconds": ${StepFnTimeoutSeconds},
-  "StartAt": "AssignConstantsAndExtractDbIdentifierFromEvent",
+  "StartAt": "AssignConstantExtractDbIdentifierFromEvent",
   "States": {
-    "AssignConstantsAndExtractDbIdentifierFromEvent": {
+    "AssignConstantExtractDbIdentifierFromEvent": {
       "Type": "Pass",
       "Assign": {
         "Constant": "{% {\n  'StepFnTaskTimeoutSeconds': ${StepFnTaskTimeoutSeconds},\n  'DoNotFollowUntilStopped': $not(${FollowUntilStopped}),\n  'StepFnWaitSeconds': ${StepFnWaitSeconds},\n  'StepFnTimeoutMilliseconds': ${StepFnTimeoutSeconds} * 1000\n} %}"
       },
       "Comment": "Process JSON state machine definition with CloudFormation Fn::Sub to resolve parameters, which are substituted as unquoted strings",
       "Output": "{% {\n  'Event': $states.input,\n  'Date': $states.input.detail.Date,\n  'SourceIdentifier': $states.input.detail.SourceIdentifier,\n  'SourceType': $states.input.detail.SourceType\n} %}",
-      "Next": "IfEventNotExpiredChooseDbClusterOrInstance"
+      "Next": "Wait"
     },
-    "IfEventNotExpiredChooseDbClusterOrInstance": {
+    "Wait": {
+      "Type": "Wait",
+      "Seconds": "{% $Constant.StepFnWaitSeconds %}",
+      "Output": "{% $states.input ~> |$|{}, ['DbStatus', 'Error', 'Cause']| %}",
+      "Comment": "Deletes possibly-stale status, and any past error",
+      "Next": "IfEventNotExpiredChooseClusterOrInstance"
+    },
+    "IfEventNotExpiredChooseClusterOrInstance": {
       "Type": "Choice",
       "Choices": [
         {
@@ -88,17 +95,15 @@
       "Output": "{% $states.input %}",
       "Next": "FollowUntilStopped?"
     },
-    "AuroraDbInstanceNotEligibleForStopping?": {
+    "FollowUntilStopped?": {
       "Type": "Choice",
       "Choices": [
         {
-          "Condition": "{% $contains($states.input.Cause, 'aurora') and $contains($states.input.Cause, 'not eligible for stopping') %}",
-          "Comment": "Aurora: stop cluster, not instances. This InvalidParameterCombination occurs only in test mode. RDS-EVENT-0088 database instance non-forced start is indistinguishable for RDS (accepted) and Aurora (ignored in favor of RDS-EVENT-0151 for cluster).",
-          "Output": "{% $states.input ~> |$|{'Info': 'StopAuroraClusterNotInstances'}| %}",
+          "Condition": "{% $Constant.DoNotFollowUntilStopped %}",
           "Next": "Succeed"
         }
       ],
-      "Default": "Fail"
+      "Default": "Wait"
     },
     "DescribeDBInstances": {
       "Type": "Task",
@@ -132,22 +137,17 @@
       ],
       "Default": "Wait"
     },
-    "FollowUntilStopped?": {
+    "AuroraDbInstanceNotEligibleForStopping?": {
       "Type": "Choice",
       "Choices": [
         {
-          "Condition": "{% $Constant.DoNotFollowUntilStopped %}",
+          "Condition": "{% $contains($states.input.Cause, 'aurora') and $contains($states.input.Cause, 'not eligible for stopping') %}",
+          "Comment": "Aurora: stop cluster, not instances. This InvalidParameterCombination occurs only in test mode. RDS-EVENT-0088 database instance non-forced start is indistinguishable for RDS (accepted) and Aurora (ignored in favor of RDS-EVENT-0151 for cluster).",
+          "Output": "{% $states.input ~> |$|{'Info': 'StopAuroraClusterNotInstances'}| %}",
           "Next": "Succeed"
         }
       ],
-      "Default": "Wait"
-    },
-    "Wait": {
-      "Type": "Wait",
-      "Seconds": "{% $Constant.StepFnWaitSeconds %}",
-      "Output": "{% $states.input ~> |$|{}, ['DbStatus', 'Error', 'Cause']| %}",
-      "Comment": "Deletes possibly-stale status, and any past error",
-      "Next": "IfEventNotExpiredChooseDbClusterOrInstance"
+      "Default": "Fail"
     },
     "Fail": {
       "Type": "Fail"

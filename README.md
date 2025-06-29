@@ -45,10 +45,11 @@ or an
 
 ||Step Function (here)|Lambda|
 |---:|:---:|:---:|
-|github.com/sqlxpert/|[**step**-stay-stopped-aws-rds-aurora](https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora)|[stay-stopped-aws-rds-aurora](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora#stay-stopped-rds-and-aurora)|
+|github.com/sqlxpert/|[**step**-stay-stopped-aws-rds-aurora](/)|[stay-stopped-aws-rds-aurora](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora#stay-stopped-rds-and-aurora)|
 |Status|Experimental|Supported|
 |[EventBridge rule](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-rules.html) target|Step Function|SQS queue, which feeds Lambda&nbsp;function|
 |Lines of code|**&lt;&nbsp;200** JSON/[JSONata](https://docs.jsonata.org) lines|**&gt;&nbsp;300** Python lines|
+|Code file|[step_stay_stopped_aws_rds_aurora.asl.json](/step_stay_stopped_aws_rds_aurora.asl.json)|[stay_stopped_aws_rds_aurora.py](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora/blob/main/stay_stopped_aws_rds_aurora.py)|
 |API calls|[AWS SDK integration](https://docs.aws.amazon.com/step-functions/latest/dg/supported-services-awssdk.html)|[boto3 RDS client](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds.html)|
 |Decisions and branching|[Choice states](https://docs.aws.amazon.com/step-functions/latest/dg/state-choice.html)|Python control flow statements|
 |Error handling|[Catchers](https://docs.aws.amazon.com/step-functions/latest/dg/concepts-error-handling.html#error-handling-fallback-states) on task states|`try`...`except`|
@@ -195,7 +196,7 @@ have to make your own.
 Compare:
 
 [<img src="media/step-stay-stopped-aws-rds-aurora-flow-auto-thumb.png" alt="A 'Choice' state named 'If Event Not Expired Choose Database Cluster Or Instance' branches out to 'Stop Database Instance' and 'Stop Database Cluster' states. The 'Stop Database Instance' state feeds into a 'Describe Database Instances' state. The 'Describe Database Instances' and 'Stop Database Cluster' states both feed into a 'Choice' state named 'Database Status', which branches out to 'Wait' and 'Success' states. The 'Wait' state feeds back into the 'If Event Not Expired Choose Database Cluster Or Instance' state. This summarizes an error-free run." height="144" />](media/step-stay-stopped-aws-rds-aurora-flow-auto.png?raw=true "Automatically-generated state machine diagram for the Amazon Web Services Step Function solution")
-[<img src="media/stay-stopped-aws-rds-aurora-architecture-and-flow-thumb.png" alt="Relational Database Service Event Bridge events '0153' and '0154' (database started after exceeding 7-day maximum stop time) go to the main Simple Queue Service queue. The Amazon Web Services Lambda function stops the RDS instance or the Aurora cluster. If the database's status is invalid, the queue message becomes visible again in 9 minutes. A final status of 'stopping', 'deleting' or 'deleted' ends retries. This summarizes an error-free run." height="144" />](media/stay-stopped-aws-rds-aurora-architecture-and-flow.png?raw=true "Custom architecture diagram and flowchart for the Amazon Web Services Lambda solution")
+[<img src="media/stay-stopped-aws-rds-aurora-architecture-and-flow-thumb.png" alt="Relational Database Service Event Bridge events '0153' and '0154' (database started after exceeding 7-day maximum stop time) go to the main Simple Queue Service queue, where messages are initially delayed 9 minutes. The Amazon Web Services Lambda function stops the RDS instance or the Aurora cluster. If the database's status is invalid, the queue message becomes visible again in 9 minutes. A final status of 'stopping', 'deleting' or 'deleted' ends retries. This summarizes an error-free run." height="144" />](media/stay-stopped-aws-rds-aurora-architecture-and-flow.png?raw=true "Custom architecture diagram and flowchart for the Amazon Web Services Lambda solution")
 
 ### The Step Function Wins!
 

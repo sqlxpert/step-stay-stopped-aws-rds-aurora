@@ -130,8 +130,8 @@ There is even a
 
 [boto3 can retry automatically](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/retries.html#standard-retry-mode)
 in response to 18 exceptions and 4 general HTTP status codes. You'd have to
-experiment to discover the Step Function service's name for each of the 26
-error conditions (there is no comprehensive document), list all 26 in the
+experiment to discover the Step Function service's name for each of the 22
+error conditions (there is no comprehensive document), list all 22 in the
 `ErrorEquals` field of the
 [retrier](https://docs.aws.amazon.com/step-functions/latest/dg/concepts-error-handling.html#error-handling-retrying-after-an-error),
 and then duplicate the list in every state that makes an AWS API request.

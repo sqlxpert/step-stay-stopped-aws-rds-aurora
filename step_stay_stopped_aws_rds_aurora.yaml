@@ -289,6 +289,8 @@ Conditions:
 
   EnableTrue: !Equals [ !Ref Enable, "true" ]
 
+  FollowUntilStoppedTrue: !Equals [ !Ref FollowUntilStopped, "true" ]
+
   TestTrue: !Equals [ !Ref Test, "true" ]
 
   SqsKmsKeyBlank: !Equals [ !Ref SqsKmsKey, "" ]
@@ -723,165 +725,164 @@ Resources:
       TracingConfiguration: { Enabled: false }
       RoleArn: !GetAtt StepFnRole.Arn
       StateMachineType: STANDARD
-      DefinitionString: !Sub |-
-        {
-          "Comment": "Stop AWS RDS and Aurora databases after the forced 7th-day start",
-          "QueryLanguage": "JSONata",
-          "TimeoutSeconds": ${StepFnTimeoutSeconds},
-          "StartAt": "AssignConstantExtractDbIdentifierFromEvent",
-          "States": {
-            "AssignConstantExtractDbIdentifierFromEvent": {
-              "Type": "Pass",
-              "Assign": {
-                "Constant": "{% {\n  'StepFnTaskTimeoutSeconds': ${StepFnTaskTimeoutSeconds},\n  'DoNotFollowUntilStopped': $not(${FollowUntilStopped}),\n  'StepFnWaitSeconds': ${StepFnWaitSeconds},\n  'StepFnTimeoutMilliseconds': ${StepFnTimeoutSeconds} * 1000\n} %}"
+      DefinitionString: !Sub
+        - |-
+          {
+            "Comment": "Stop AWS RDS and Aurora databases after the forced 7th-day start",
+            "QueryLanguage": "JSONata",
+            "TimeoutSeconds": ${StepFnTimeoutSeconds},
+            "StartAt": "AssignConstantExtractDbIdentifierFromEvent",
+            "States": {
+              "AssignConstantExtractDbIdentifierFromEvent": {
+                "Type": "Pass",
+                "Assign": {
+                  "Constant": "{% {\n  'StepFnTaskTimeoutSeconds': ${StepFnTaskTimeoutSeconds},\n  'StepFnWaitSeconds': ${StepFnWaitSeconds},\n  'StepFnTimeoutMilliseconds': ${StepFnTimeoutSeconds} * 1000\n} %}"
+                },
+                "Comment": "Process JSON state machine definition with CloudFormation Fn::Sub to resolve parameters, which are substituted as unquoted strings",
+                "Output": "{% {\n  'Event': $states.input,\n  'Date': $states.input.detail.Date,\n  'SourceIdentifier': $states.input.detail.SourceIdentifier,\n  'SourceType': $states.input.detail.SourceType\n} %}",
+                "Next": "Wait"
               },
-              "Comment": "Process JSON state machine definition with CloudFormation Fn::Sub to resolve parameters, which are substituted as unquoted strings",
-              "Output": "{% {\n  'Event': $states.input,\n  'Date': $states.input.detail.Date,\n  'SourceIdentifier': $states.input.detail.SourceIdentifier,\n  'SourceType': $states.input.detail.SourceType\n} %}",
-              "Next": "Wait"
-            },
-            "Wait": {
-              "Type": "Wait",
-              "Seconds": "{% $Constant.StepFnWaitSeconds %}",
-              "Output": "{% $states.input ~> |$|{}, ['DbStatus', 'Error', 'Cause']| %}",
-              "Comment": "Deletes possibly-stale status, and any past error",
-              "Next": "IfEventNotExpiredChooseClusterOrInstance"
-            },
-            "IfEventNotExpiredChooseClusterOrInstance": {
-              "Type": "Choice",
-              "Choices": [
-                {
-                  "Condition": "{% $toMillis($states.input.Date) < ($millis() - $Constant.StepFnTimeoutMilliseconds) %}",
-                  "Output": "{% $states.input ~> |$|{'Error': $states.context.State.Name & '.' & 'EventExpired'}| /* https://docs.jsonata.org/other-operators#-------transform */ %}",
-                  "Next": "Fail"
-                },
-                {
-                  "Condition": "{% 'CLUSTER' = $states.input.SourceType %}",
-                  "Next": "StopDBCluster"
-                },
-                {
-                  "Condition": "{% 'DB_INSTANCE' = $states.input.SourceType %}",
-                  "Next": "StopDBInstance"
-                }
-              ]
-            },
-            "StopDBCluster": {
-              "Type": "Task",
-              "Resource": "arn:aws:states:::aws-sdk:rds:stopDBCluster",
-              "Arguments": "{% {'DbClusterIdentifier': $states.input.SourceIdentifier} %}",
-              "TimeoutSeconds": "{% $Constant.StepFnTaskTimeoutSeconds %}",
-              "Catch": [
-                {
-                  "ErrorEquals": [
-                    "Rds.InvalidDbClusterStateException"
-                  ],
-                  "Output": "{% \n  $states.input\n  ~> |$|{'DbStatus': $lowercase($match($states.errorOutput.Cause, /^DbCluster [^ ]+ is in (.+) state/, 1).groups[0])}|\n  ~> |$|$.DbStatus ? {} : $states.errorOutput|\n  ~> |$|$.DbStatus ? {} : {'DbStatus': '', 'Error': $states.context.State.Name & '.' & $.Error & '.CannotParseException'}|\n %}",
-                  "Next": "DbStatus"
-                },
-                {
-                  "ErrorEquals": [
-                    "States.ALL"
-                  ],
-                  "Comment": "Includes Rds.InvalidDbInstanceStateException, which occurs until each cluster member becomes available",
-                  "Output": "{% $states.input ~> |$|$states.errorOutput| ~> |$|{'Error': $states.context.State.Name & '.' & $.Error}| %}",
-                  "Next": "Wait"
-                }
-              ],
-              "Output": "{% $states.input %}",
-              "Next": "FollowUntilStopped?"
-            },
-            "StopDBInstance": {
-              "Type": "Task",
-              "Resource": "arn:aws:states:::aws-sdk:rds:stopDBInstance",
-              "Arguments": "{% {'DbInstanceIdentifier': $states.input.SourceIdentifier} %}",
-              "TimeoutSeconds": "{% $Constant.StepFnTaskTimeoutSeconds %}",
-              "Catch": [
-                {
-                  "ErrorEquals": [
-                    "Rds.InvalidDbInstanceStateException"
-                  ],
-                  "Output": "{% $states.input ~> |$|$states.errorOutput| ~> |$|{'Error': $states.context.State.Name & '.' & $.Error}| %}",
-                  "Next": "DescribeDBInstances"
-                },
-                {
-                  "ErrorEquals": [
-                    "Rds.RdsException"
-                  ],
-                  "Output": "{% $states.input ~> |$|$states.errorOutput| ~> |$|{'Error': $states.context.State.Name & '.' & $.Error}| %}",
-                  "Comment": "Next state uses Cause key of stashed errorOutput",
-                  "Next": "AuroraDbInstanceNotEligibleForStopping?"
-                },
-                {
-                  "ErrorEquals": [
-                    "States.ALL"
-                  ],
-                  "Output": "{% $states.input ~> |$|$states.errorOutput| ~> |$|{'Error': $states.context.State.Name & '.' & $.Error}| %}",
-                  "Next": "Wait"
-                }
-              ],
-              "Output": "{% $states.input %}",
-              "Next": "FollowUntilStopped?"
-            },
-            "FollowUntilStopped?": {
-              "Type": "Choice",
-              "Choices": [
-                {
-                  "Condition": "{% $Constant.DoNotFollowUntilStopped %}",
-                  "Next": "Succeed"
-                }
-              ],
-              "Default": "Wait"
-            },
-            "DescribeDBInstances": {
-              "Type": "Task",
-              "Resource": "arn:aws:states:::aws-sdk:rds:describeDBInstances",
-              "Arguments": "{% {'DbInstanceIdentifier': $states.input.SourceIdentifier} %}",
-              "TimeoutSeconds": "{% $Constant.StepFnTaskTimeoutSeconds %}",
-              "Catch": [
-                {
-                  "ErrorEquals": [
-                    "States.ALL"
-                  ],
-                  "Output": "{% $states.input ~> |$|$states.errorOutput| ~> |$|{'Error': $states.context.State.Name & '.' & $.Error}| %}",
-                  "Next": "Wait"
-                }
-              ],
-              "Output": "{% \n  $states.input\n  ~> |$|{'DbStatus': $lowercase($states.result.DbInstances[0].DbInstanceStatus)}|\n  ~> |$|$.DbStatus ? {} : {'DbStatus': '', 'Error': $states.context.State.Name & '.CannotParseResult', 'Cause': $string($states.result)}|\n %}",
-              "Next": "DbStatus"
-            },
-            "DbStatus": {
-              "Type": "Choice",
-              "Choices": [
-                {
-                  "Condition": "{% $states.input.DbStatus in ['inaccessible-encryption-credentials', 'cloning-failed', 'migration-failed', 'preparing-data-migration', 'failed', 'incompatible-restore', 'insufficient-capacity', 'restore-error', 'storage-full'] %}",
-                  "Output": "{% $states.input ~> |$|{'Error': $states.context.State.Name & '.CannotContinue'}| %}",
-                  "Next": "Fail"
-                },
-                {
-                  "Condition": "{% (('stopping' = $states.input.DbStatus) and $Constant.DoNotFollowUntilStopped) or ($states.input.DbStatus in ['stopped', 'deleting', 'deleted']) %}",
-                  "Next": "Succeed"
-                }
-              ],
-              "Default": "Wait"
-            },
-            "AuroraDbInstanceNotEligibleForStopping?": {
-              "Type": "Choice",
-              "Choices": [
-                {
-                  "Condition": "{% $contains($states.input.Cause, 'aurora') and $contains($states.input.Cause, 'not eligible for stopping') %}",
-                  "Comment": "Aurora: stop cluster, not instances. This InvalidParameterCombination occurs only in test mode. RDS-EVENT-0088 database instance non-forced start is indistinguishable for RDS (accepted) and Aurora (ignored in favor of RDS-EVENT-0151 for cluster).",
-                  "Output": "{% $states.input ~> |$|{'Info': 'StopAuroraClusterNotInstances'}| %}",
-                  "Next": "Succeed"
-                }
-              ],
-              "Default": "Fail"
-            },
-            "Fail": {
-              "Type": "Fail"
-            },
-            "Succeed": {
-              "Type": "Succeed",
-              "Output": "{% $states.input ~> |$|{}, ['DbStatus', 'Error', 'Cause']| %}",
-              "Comment": "Deletes possibly-stale status, and any past error"
+              "Wait": {
+                "Type": "Wait",
+                "Seconds": "{% $Constant.StepFnWaitSeconds %}",
+                "Output": "{% $states.input ~> |$|{}, ['DbStatus', 'Error', 'Cause']| %}",
+                "Comment": "Deletes possibly-stale status, and any past error",
+                "Next": "IfEventNotExpiredChooseClusterOrInstance"
+              },
+              "IfEventNotExpiredChooseClusterOrInstance": {
+                "Type": "Choice",
+                "Choices": [
+                  {
+                    "Condition": "{% $toMillis($states.input.Date) < ($millis() - $Constant.StepFnTimeoutMilliseconds) %}",
+                    "Output": "{% $states.input ~> |$|{'Error': $states.context.State.Name & '.' & 'EventExpired'}| /* https://docs.jsonata.org/other-operators#-------transform */ %}",
+                    "Next": "Fail"
+                  },
+                  {
+                    "Condition": "{% 'CLUSTER' = $states.input.SourceType %}",
+                    "Next": "StopDBCluster"
+                  },
+                  {
+                    "Condition": "{% 'DB_INSTANCE' = $states.input.SourceType %}",
+                    "Next": "StopDBInstance"
+                  }
+                ]
+              },
+              "StopDBCluster": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::aws-sdk:rds:stopDBCluster",
+                "Arguments": "{% {'DbClusterIdentifier': $states.input.SourceIdentifier} %}",
+                "TimeoutSeconds": "{% $Constant.StepFnTaskTimeoutSeconds %}",
+                "Catch": [
+                  {
+                    "ErrorEquals": [
+                      "Rds.InvalidDbClusterStateException"
+                    ],
+                    "Output": "{% \n  $states.input\n  ~> |$|{'DbStatus': $lowercase($match($states.errorOutput.Cause, /^DbCluster [^ ]+ is in (.+) state/, 1).groups[0])}|\n  ~> |$|$.DbStatus ? {} : $states.errorOutput|\n  ~> |$|$.DbStatus ? {} : {'DbStatus': '', 'Error': $states.context.State.Name & '.' & $.Error & '.CannotParseException'}|\n %}",
+                    "Next": "DbStatus"
+                  },
+                  {
+                    "ErrorEquals": [
+                      "States.ALL"
+                    ],
+                    "Comment": "Includes Rds.InvalidDbInstanceStateException, which occurs until each cluster member becomes available",
+                    "Output": "{% $states.input ~> |$|$states.errorOutput| ~> |$|{'Error': $states.context.State.Name & '.' & $.Error}| %}",
+                    "Next": "Wait"
+                  }
+                ],
+                "Output": "{% $states.input %}",
+                "Next": "${StopDBNextStateName}"
+              },
+              "StopDBInstance": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::aws-sdk:rds:stopDBInstance",
+                "Arguments": "{% {'DbInstanceIdentifier': $states.input.SourceIdentifier} %}",
+                "TimeoutSeconds": "{% $Constant.StepFnTaskTimeoutSeconds %}",
+                "Catch": [
+                  {
+                    "ErrorEquals": [
+                      "Rds.InvalidDbInstanceStateException"
+                    ],
+                    "Output": "{% $states.input ~> |$|$states.errorOutput| ~> |$|{'Error': $states.context.State.Name & '.' & $.Error}| %}",
+                    "Next": "DescribeDBInstances"
+                  },
+                  {
+                    "ErrorEquals": [
+                      "Rds.RdsException"
+                    ],
+                    "Output": "{% $states.input ~> |$|$states.errorOutput| ~> |$|{'Error': $states.context.State.Name & '.' & $.Error}| %}",
+                    "Comment": "Next state uses Cause key of stashed errorOutput",
+                    "Next": "AuroraDbInstanceNotEligibleForStopping?"
+                  },
+                  {
+                    "ErrorEquals": [
+                      "States.ALL"
+                    ],
+                    "Output": "{% $states.input ~> |$|$states.errorOutput| ~> |$|{'Error': $states.context.State.Name & '.' & $.Error}| %}",
+                    "Next": "Wait"
+                  }
+                ],
+                "Output": "{% $states.input %}",
+                "Next": "${StopDBNextStateName}"
+              },
+              "DescribeDBInstances": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::aws-sdk:rds:describeDBInstances",
+                "Arguments": "{% {'DbInstanceIdentifier': $states.input.SourceIdentifier} %}",
+                "TimeoutSeconds": "{% $Constant.StepFnTaskTimeoutSeconds %}",
+                "Catch": [
+                  {
+                    "ErrorEquals": [
+                      "States.ALL"
+                    ],
+                    "Output": "{% $states.input ~> |$|$states.errorOutput| ~> |$|{'Error': $states.context.State.Name & '.' & $.Error}| %}",
+                    "Next": "Wait"
+                  }
+                ],
+                "Output": "{% \n  $states.input\n  ~> |$|{'DbStatus': $lowercase($states.result.DbInstances[0].DbInstanceStatus)}|\n  ~> |$|$.DbStatus ? {} : {'DbStatus': '', 'Error': $states.context.State.Name & '.CannotParseResult', 'Cause': $string($states.result)}|\n %}",
+                "Next": "DbStatus"
+              },
+              "DbStatus": {
+                "Type": "Choice",
+                "Choices": [
+                  {
+                    "Condition": "{% $states.input.DbStatus in ['inaccessible-encryption-credentials', 'cloning-failed', 'migration-failed', 'preparing-data-migration', 'failed', 'incompatible-restore', 'insufficient-capacity', 'restore-error', 'storage-full'] %}",
+                    "Output": "{% $states.input ~> |$|{'Error': $states.context.State.Name & '.CannotContinue'}| %}",
+                    "Next": "Fail"
+                  },
+                  {
+                    "Condition": "{% $states.input.DbStatus in [${DbStatusStoppingLeadingArrayItem}'stopped', 'deleting', 'deleted'] %}",
+                    "Next": "Succeed"
+                  }
+                ],
+                "Default": "Wait"
+              },
+              "AuroraDbInstanceNotEligibleForStopping?": {
+                "Type": "Choice",
+                "Choices": [
+                  {
+                    "Condition": "{% $contains($states.input.Cause, 'aurora') and $contains($states.input.Cause, 'not eligible for stopping') %}",
+                    "Comment": "Aurora: stop cluster, not instances. This InvalidParameterCombination occurs only in test mode. RDS-EVENT-0088 database instance non-forced start is indistinguishable for RDS (accepted) and Aurora (ignored in favor of RDS-EVENT-0151 for cluster).",
+                    "Output": "{% $states.input ~> |$|{'Info': 'StopAuroraClusterNotInstances'}| %}",
+                    "Next": "Succeed"
+                  }
+                ],
+                "Default": "Wait"
+              },
+              "Fail": {
+                "Type": "Fail"
+              },
+              "Succeed": {
+                "Type": "Succeed",
+                "Output": "{% $states.input ~> |$|{}, ['DbStatus', 'Error', 'Cause']| %}",
+                "Comment": "Deletes possibly-stale status, and any past error"
+              }
             }
           }
-        }
+        - StopDBNextStateName: !If
+            - FollowUntilStoppedTrue
+            - Wait
+            - Succeed
+          DbStatusStoppingLeadingArrayItem: !If
+            - FollowUntilStoppedTrue
+            - ""
+            - "'stopping', "

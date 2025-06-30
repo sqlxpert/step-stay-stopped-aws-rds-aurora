@@ -218,13 +218,13 @@ addressed in the future.
 ### Step Function Clarity
 
 Given the complexity of correct error-handling logic, and the weaknesses of the
-Step Function service's automatically-generated diagrams, it's doubly important
-to document and explain your state machine. Here is my advice:
+Step Function console's automatically-generated diagrams, it's important to
+document and explain your state machine. Here is my advice:
 
  1. Choose descriptive state names. For example, I changed `Dispatch` to
-    `IfEventNotExpiredChooseDbClusterOrInstance`.
+    `IfEventNotExpiredChooseClusterOrInstance`.
 
- 2. Append a question mark (`?`) to the name of  straightforward binary Choice
+ 2. Append a question mark (`?`) to the name of a straightforward binary Choice
     state.
 
  3. Include the same root word(s) in a related AWS API method name, AWS API
@@ -242,8 +242,9 @@ to document and explain your state machine. Here is my advice:
  5. Don't add `Comment` keys or `/* JSONata comments */` if the information is
     obvious from the state name, a Boolean expression in a Choice rule, an
     `ErrorEquals` error name, or some other proximate clue.
-    - As of June, 2025, the Step Function service labels Choice rule branches
-      with `Comment` values, but still numbers Catch branches.
+    - As of June, 2025, the Step Function console labels Choice rule branches
+      with `Comment` values, but numbers Catch branches even if they have
+      comments.
     - Add a comment if a term cannot be used in searches. Search features don't
       allow, or don't do a good job with: symbols; the definite article "the";
       other short "stop-words"; and words with two or more popular meanings.

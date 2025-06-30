@@ -866,7 +866,7 @@ Resources:
                     "Next": "Succeed"
                   }
                 ],
-                "Default": "Fail"
+                "Default": "Wait"
               },
               "Fail": {
                 "Type": "Fail"

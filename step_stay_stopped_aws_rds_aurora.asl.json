@@ -7,7 +7,7 @@
     "AssignConstantExtractDbIdentifierFromEvent": {
       "Type": "Pass",
       "Assign": {
-        "Constant": "{% {\n  'StepFnTaskTimeoutSeconds': ${StepFnTaskTimeoutSeconds},\n  'DoNotFollowUntilStopped': $not(${FollowUntilStopped}),\n  'StepFnWaitSeconds': ${StepFnWaitSeconds},\n  'StepFnTimeoutMilliseconds': ${StepFnTimeoutSeconds} * 1000\n} %}"
+        "Constant": "{% {\n  'StepFnTaskTimeoutSeconds': ${StepFnTaskTimeoutSeconds},\n  'StepFnWaitSeconds': ${StepFnWaitSeconds},\n  'StepFnTimeoutMilliseconds': ${StepFnTimeoutSeconds} * 1000\n} %}"
       },
       "Comment": "Process JSON state machine definition with CloudFormation Fn::Sub to resolve parameters, which are substituted as unquoted strings",
       "Output": "{% {\n  'Event': $states.input,\n  'Date': $states.input.detail.Date,\n  'SourceIdentifier': $states.input.detail.SourceIdentifier,\n  'SourceType': $states.input.detail.SourceType\n} %}",
@@ -61,7 +61,7 @@
         }
       ],
       "Output": "{% $states.input %}",
-      "Next": "FollowUntilStopped?"
+      "Next": "${StopDBNextStateName}"
     },
     "StopDBInstance": {
       "Type": "Task",
@@ -93,17 +93,7 @@
         }
       ],
       "Output": "{% $states.input %}",
-      "Next": "FollowUntilStopped?"
-    },
-    "FollowUntilStopped?": {
-      "Type": "Choice",
-      "Choices": [
-        {
-          "Condition": "{% $Constant.DoNotFollowUntilStopped %}",
-          "Next": "Succeed"
-        }
-      ],
-      "Default": "Wait"
+      "Next": "${StopDBNextStateName}"
     },
     "DescribeDBInstances": {
       "Type": "Task",

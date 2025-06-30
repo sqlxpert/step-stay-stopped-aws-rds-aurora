@@ -158,7 +158,7 @@ behind the events and at one point jammed, thereby losing valuable information.
 <details>
   <summary>Reference...</summary>
 
-- _Report of the President's Commission on the Accident at Three Miles Island_,
+- _Report of the President's Commission on the Accident at Three Mile Island_,
   October, 1979, Page 30
 - Direct link:
   [archive.org](https://archive.org/details/three-mile-island-report/page/30/mode/1up)

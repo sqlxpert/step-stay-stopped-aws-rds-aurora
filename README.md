@@ -47,9 +47,10 @@ or an
 |---:|:---:|:---:|
 |github.com/sqlxpert/|[**step**-stay-stopped-aws-rds-aurora](/../../#step-stay-stopped-rds-and-aurora)|[stay-stopped-aws-rds-aurora](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora#stay-stopped-rds-and-aurora)|
 |Status|Experimental|Supported|
-|[EventBridge rule](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-rules.html) target|Step Function|SQS queue, which feeds Lambda&nbsp;function|
+|[EventBridge rule](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-rules.html) target|Step Function|SQS&nbsp;queue, which feeds a Lambda&nbsp;function|
 |Lines of code|**&lt;&nbsp;200** JSON/[JSONata](https://docs.jsonata.org) lines|**&gt;&nbsp;300** Python lines|
-|Code file|[step_stay_stopped_aws_rds_aurora.asl.json](/step_stay_stopped_aws_rds_aurora.asl.json)|[stay_stopped_aws_rds_aurora.py](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora/blob/main/stay_stopped_aws_rds_aurora.py)|
+|Main file|[step_stay_stopped_aws_rds_aurora.asl.json](/step_stay_stopped_aws_rds_aurora.asl.json)|[stay_stopped_aws_rds_aurora.py](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora/blob/main/stay_stopped_aws_rds_aurora.py)|
+|Installation template|[step_stay_stopped_aws_rds_aurora.yaml](/step_stay_stopped_aws_rds_aurora.yaml)|[stay_stopped_aws_rds_aurora.yaml](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora/blob/main/stay_stopped_aws_rds_aurora.yaml)|
 |API calls|[AWS SDK integration](https://docs.aws.amazon.com/step-functions/latest/dg/supported-services-awssdk.html)|[boto3 RDS client](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds.html)|
 |Decisions and branching|[Choice states](https://docs.aws.amazon.com/step-functions/latest/dg/state-choice.html)|Python control flow statements|
 |Error handling|[Catchers](https://docs.aws.amazon.com/step-functions/latest/dg/concepts-error-handling.html#error-handling-fallback-states) on task states|`try`...`except`|
@@ -443,14 +444,21 @@ Check the:
     - Log entries are JSON objects.
     - For more data, change the `LogLevel` in CloudFormation.
 
- 2. `StepStayStoppedRdsAurora-ErrorQueue` (dead letter)
+ 2. "Executions" data for the `StepStayStoppedRdsAurora-StepFn`
+    [Step Function](https://console.aws.amazon.com/states/home#/statemachines)
+    - The "State View" is useful for diagnosing errors.
+    - Rows with "Caught error" in the "Status" column are expected and can be
+      ignored if the "Reason" is `Rds.InvalidDbInstanceStateException` or
+      `Rds.InvalidDbClusterStateException`&nbsp.
+
+ 3. `StepStayStoppedRdsAurora-ErrorQueue` (dead letter)
     [SQS queue](https://console.aws.amazon.com/sqs/v3/home#/queues)
     - A message here means that the Step Function did not run; the request to
       stop the database was not made.
     - Usually the local security configuration is denying EventBridge necessary
       access to the Step Function.
 
- 3. [CloudTrail Event history](https://console.aws.amazon.com/cloudtrailv2/home?ReadOnly=false/events#/events?ReadOnly=false)
+ 4. [CloudTrail Event history](https://console.aws.amazon.com/cloudtrailv2/home?ReadOnly=false/events#/events?ReadOnly=false)
     - CloudTrail events with an "Error code" may indicate permissions
       problems,
       typically due to the local security configuration.

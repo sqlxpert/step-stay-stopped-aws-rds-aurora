@@ -850,7 +850,7 @@ Resources:
                     "Next": "Fail"
                   },
                   {
-                    "Condition": "{% (('stopping' = $states.input.DbStatus) and $Constant.DoNotFollowUntilStopped) or ($states.input.DbStatus in ['stopped', 'deleting', 'deleted']) %}",
+                    "Condition": "{% $states.input.DbStatus in [${DbStatusStoppingLeadingArrayItem}'stopped', 'deleting', 'deleted'] %}",
                     "Next": "Succeed"
                   }
                 ],
@@ -879,6 +879,10 @@ Resources:
             }
           }
         - StopDBNextStateName: !If
-          - FollowUntilStoppedTrue
-          - Wait
-          - Succeed
+            - FollowUntilStoppedTrue
+            - Wait
+            - Succeed
+          DbStatusStoppingLeadingArrayItem: !If
+            - FollowUntilStoppedTrue
+            - "'stopping', "
+            - ""

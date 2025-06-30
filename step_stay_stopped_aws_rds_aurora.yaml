@@ -884,5 +884,5 @@ Resources:
             - Succeed
           DbStatusStoppingLeadingArrayItem: !If
             - FollowUntilStoppedTrue
-            - "'stopping', "
             - ""
+            - "'stopping', "

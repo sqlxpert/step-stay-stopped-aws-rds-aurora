@@ -74,7 +74,7 @@ able to handle error conditions, is liable to be more complex than the
 initial, normal-case design, even a complex state machine diagram becomes
 readable when the Step Functions console marks it up with the traversal from a
 particular run. Click below to view an example. Next, click for the "State
-View", a tabular summary. Not shown is the "Event View", a complete log of the
+view", a tabular summary. Not shown is the "Event view", a complete log of the
 payload at the start and end of each state, plus data available for use within
 the scope of one state (such as an API response).
 
@@ -446,7 +446,7 @@ Check the:
 
  2. "Executions" data for the `StepStayStoppedRdsAurora-StepFn`
     [Step Function](https://console.aws.amazon.com/states/home#/statemachines)
-    - The "State View" is useful for diagnosing errors.
+    - The "State view" is useful for diagnosing errors.
     - Rows with "Caught error" in the "Status" column are expected and can be
       ignored if the "Reason" is `Rds.InvalidDbInstanceStateException` or
       `Rds.InvalidDbClusterStateException`&nbsp.

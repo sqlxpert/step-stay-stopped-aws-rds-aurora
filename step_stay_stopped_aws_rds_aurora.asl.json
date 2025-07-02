@@ -9,20 +9,21 @@
       "Assign": {
         "Constant": "{% {\n  'StepFnTaskTimeoutSeconds': ${StepFnTaskTimeoutSeconds},\n  'StepFnWaitSeconds': ${StepFnWaitSeconds},\n  'StepFnTimeoutMilliseconds': ${StepFnTimeoutSeconds} * 1000\n} %}"
       },
-      "Comment": "Process JSON state machine definition with CloudFormation Fn::Sub to resolve parameters, which are substituted as unquoted strings",
-      "Output": "{% {\n  'Event': $states.input,\n  'Date': $states.input.detail.Date,\n  'SourceIdentifier': $states.input.detail.SourceIdentifier,\n  'SourceType': $states.input.detail.SourceType\n} %}",
+      "Comment": "Process JSON state machine definition with CloudFormation Fn::Sub to resolve parameters",
+      "Output": "{% {\n  'Event': $states.input,\n  'Date': $states.input.detail.Date,\n  'SourceIdentifier': $states.input.detail.SourceIdentifier,\n  'SourceType': $states.input.detail.SourceType,\n  'DbStatus': ''\n} %}",
       "Next": "Wait"
     },
     "Wait": {
       "Type": "Wait",
       "Seconds": "{% $Constant.StepFnWaitSeconds %}",
-      "Output": "{% $states.input ~> |$|{}, ['DbStatus', 'Error', 'Cause']| %}",
-      "Comment": "Deletes possibly-stale status, and any past error",
+      "Output": "{% $states.input ~> |$|{'DbStatus': ''}, ['Error', 'Cause']| %}",
+      "Comment": "Clears possibly-stale status and deletes any past error",
       "Next": "IfEventNotExpiredChooseClusterOrInstance"
     },
     "IfEventNotExpiredChooseClusterOrInstance": {
       "Type": "Choice",
       "Choices": [
+
         {
           "Condition": "{% $toMillis($states.input.Date) < ($millis() - $Constant.StepFnTimeoutMilliseconds) %}",
           "Output": "{% $states.input ~> |$|{'Error': $states.context.State.Name & '.' & 'EventExpired'}| /* https://docs.jsonata.org/other-operators#-------transform */ %}",
@@ -48,7 +49,7 @@
           "ErrorEquals": [
             "Rds.InvalidDbClusterStateException"
           ],
-          "Output": "{% \n  $states.input\n  ~> |$|{'DbStatus': $lowercase($match($states.errorOutput.Cause, /^DbCluster [^ ]+ is in (.+) state/, 1).groups[0])}|\n  ~> |$|$.DbStatus ? {} : $states.errorOutput|\n  ~> |$|$.DbStatus ? {} : {'DbStatus': '', 'Error': $states.context.State.Name & '.' & $.Error & '.CannotParseException'}|\n %}",
+          "Output": "{% \n  $states.input\n  ~> |$|{'DbStatus': ''}|\n  ~> |$|{'DbStatus': $lowercase($match($states.errorOutput.Cause, /^DbCluster [^ ]+ is in (.+) state/, 1).groups[0])}|\n  ~> |$|$.DbStatus ? {} : $states.errorOutput|\n  ~> |$|$.DbStatus ? {} : {'Error': $states.context.State.Name & '.' & $.Error & '.CannotParseException'}|\n %}",
           "Next": "DbStatus"
         },
         {
@@ -109,7 +110,7 @@
           "Next": "Wait"
         }
       ],
-      "Output": "{% \n  $states.input\n  ~> |$|{'DbStatus': $lowercase($states.result.DbInstances[0].DbInstanceStatus)}|\n  ~> |$|$.DbStatus ? {} : {'DbStatus': '', 'Error': $states.context.State.Name & '.CannotParseResult', 'Cause': $string($states.result)}|\n %}",
+      "Output": "{% \n  $states.input\n  ~> |$|{'DbStatus': ''}|\n  ~> |$|{'DbStatus': $lowercase($states.result.DbInstances[0].DbInstanceStatus)}|\n  ~> |$|$.DbStatus ? {} : {'Error': $states.context.State.Name & '.CannotParseResult', 'Cause': $string($states.result)}|\n %}",
       "Next": "DbStatus"
     },
     "DbStatus": {
@@ -144,8 +145,8 @@
     },
     "Succeed": {
       "Type": "Succeed",
-      "Output": "{% $states.input ~> |$|{}, ['DbStatus', 'Error', 'Cause']| %}",
-      "Comment": "Deletes possibly-stale status, and any past error"
+      "Output": "{% $states.input ~> |$|{}, ['Error', 'Cause']| %}",
+      "Comment": "Deletes any past error"
     }
   }
 }

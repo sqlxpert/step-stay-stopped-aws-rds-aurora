@@ -557,8 +557,7 @@ Resources:
             Condition:
               ArnEquals:
                 "aws:SourceArn":
-                  - !GetAtt AuroraDbForcedStartToStepFnRule.Arn
-                  - !GetAtt RdsDbForcedStartToStepFnRule.Arn
+                  - !GetAtt DbForcedStartToStepFnRule.Arn
           - Sid: ExclusiveSources
             Effect: Deny
             Principal: "*"
@@ -567,96 +566,75 @@ Resources:
             Condition:
               ArnNotEquals:
                 "aws:SourceArn":
-                  - !GetAtt AuroraDbForcedStartToStepFnRule.Arn
-                  - !GetAtt RdsDbForcedStartToStepFnRule.Arn
+                  - !GetAtt DbForcedStartToStepFnRule.Arn
 
-  AuroraDbForcedStartToStepFnRule:
+
+  # https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_Events.Messages.html#USER_Events.Messages.cluster
+  #
+  # RDS-EVENT-0153 "DB cluster is being started due to it exceeding the
+  # maximum allowed time being stopped."
+  #
+  # TESTING: RDS-EVENT-0151 "DB cluster started."
+  #
+  # https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Events.Messages.html#USER_Events.Messages.instance
+  #
+  # RDS-EVENT-0154 "DB instance is being started due to it exceeding the
+  # maximum allowed time being stopped."
+  #
+  # TESTING: RDS-EVENT-0088 "DB instance started."
+  # Warning: Aurora database instances have an event that is indistinguishable
+  # at this level. Step Function ignores it.
+  # https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_Events.Messages.html#USER_Events.Messages.instance
+
+  DbForcedStartToStepFnRule:
     Type: AWS::Events::Rule
     Properties:
-      Description:
-        Fn::If:
-          - TestTrue
-          - !Sub >-
-              RDS-EVENT-0153 forced Aurora database cluster start after 7 days,
-              plus RDS-EVENT-0151 non-forced start for TEMPORARY TESTING,
-              to ${StepFn.Name}
-          - !Sub >-
-              RDS-EVENT-0153 forced Aurora database cluster start after 7 days,
-              to ${StepFn.Name}
-      EventPattern:
-        source: [ aws.rds ]
-        detail-type: [ RDS DB Cluster Event ]
-        detail:
-          EventID:
-
-            - RDS-EVENT-0153
-            # https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_Events.Messages.html#RDS-EVENT-0153
-            # "DB cluster is being started due to it exceeding the maximum
-            # allowed time being stopped."
-
-            - !If [ TestTrue, RDS-EVENT-0151, !Ref AWS::NoValue ]
-            # https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_Events.Messages.html#RDS-EVENT-0151
-            # "DB cluster started."
-
-          SourceType: [ CLUSTER ]
-          SourceIdentifier:
-            - anything-but:
-                - ""
-                # https://github.com/aws-cloudformation/cloudformation-coverage-roadmap/issues/1378
-                # - null
-        version: [ "0" ]
-      Targets:
-        - Id: !GetAtt StepFn.Name
-          RoleArn: !GetAtt ExecuteStepFnRole.Arn
-          Arn: !GetAtt StepFn.Arn
-          RetryPolicy:
-            MaximumRetryAttempts: 10
-            MaximumEventAgeInSeconds: 300  # 5 minutes
-          DeadLetterConfig: { Arn: !GetAtt ErrorQueue.Arn }
-      State: !If [ EnableTrue, ENABLED, DISABLED ]
-
-  RdsDbForcedStartToStepFnRule:
-    Type: AWS::Events::Rule
-    Properties:
-      Description:
-        Fn::If:
-          - TestTrue
-          - !Sub >-
-              RDS-EVENT-0154 forced RDS database instance start after 7 days,
-              plus RDS-EVENT-0088 non-forced start (ignored for instances in
-              Aurora clusters) for TEMPORARY TESTING,
-              to ${StepFn.Name}
-          - !Sub >-
-              RDS-EVENT-0154 forced RDS database instance start after 7 days,
-              to ${StepFn.Name}
-      EventPattern:
-        source: [ aws.rds ]
-        detail-type: [ RDS DB Instance Event ]
-        detail:
-          EventID:
-
-            - RDS-EVENT-0154
-            # https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Events.Messages.html#RDS-EVENT-0154
-            # "DB instance is being started due to it exceeding the maximum
-            # allowed time being stopped."
-
-            - !If [ TestTrue, RDS-EVENT-0088, !Ref AWS::NoValue ]
-            # https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Events.Messages.html#RDS-EVENT-0088
-            # "DB instance started."
-            #
-            # Warning: Aurora database instances have an event that is
-            # indistinguishable at this level. The AWS Step Function ignores
-            # it.
-            # https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_Events.Messages.html#RDS-EVENT-0088
-            # "DB instance started."
-
-          SourceType: [ DB_INSTANCE ]
-          SourceIdentifier:
-            - anything-but:
-                - ""
-                # https://github.com/aws-cloudformation/cloudformation-coverage-roadmap/issues/1378
-                # - null
-        version: [ "0" ]
+      Description: !Sub
+        - >-
+          Database start:
+          forced after 7 days:
+          RDS-EVENT-0153 (Aurora cluster),
+          RDS-EVENT-0154 (RDS instance)${TestDescription} to ${StepFn.Name}
+        - TestDescription: !If
+            - TestTrue
+            - >-
+              ; non-forced TEMPORARY TESTING:
+              RDS-EVENT-0151 (Aurora cluster),
+              RDS-EVENT-0088 (instance, ignored for Aurora);
+            - ""
+      EventPattern: !Sub
+        - >-
+          {
+            "version": [ "0" ],
+            "source": [ "aws.rds" ],
+            "SourceIdentifier": [ { "anything-but": [ "" ] } ],
+            "$or": [
+              {
+                "SourceType": [ "CLUSTER" ],
+                "detail-type": [ "RDS DB Cluster Event" ],
+                "detail": {
+                  "Date": [ { "anything-but": [ "" ] } ],
+                  "EventID": [ "RDS-EVENT-0153"${AuroraTestEvent} ]
+                }
+              },
+              {
+                "SourceType": [ "DB_INSTANCE" ],
+                "detail-type": [ "RDS DB Instance Event" ],
+                "detail": {
+                  "Date": [ { "anything-but": [ "" ] } ],
+                  "EventID": [ "RDS-EVENT-0154"${RdsTestEvent} ]
+                }
+              }
+            ]
+          }
+        - AuroraTestEvent: !If
+            - TestTrue
+            - ', "RDS-EVENT-0151"'
+            - ""
+          RdsTestEvent: !If
+            - TestTrue
+            - ', "RDS-EVENT-0088"'
+            - ""
       Targets:
         - Id: !GetAtt StepFn.Name
           RoleArn: !GetAtt ExecuteStepFnRole.Arn

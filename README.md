@@ -382,7 +382,7 @@ entirely at your own risk. You are encouraged to review the source code.
 
 - A Step Function role that cannot be used by arbitrary functions. If the role
   is passed to an arbitrary Step Function, Task states will not gain access to
-  the AWS API.
+  the Aurora and RDS API.
 
 - A least-privilege queue policy. The error (dead letter) queue can only
   consume messages from EventBridge. Encryption in transit is required.
@@ -420,6 +420,14 @@ entirely at your own risk. You are encouraged to review the source code.
   production, or you might add a custom IAM policy to the function role,
   denying authority to stop certain production databases (`AttachLocalPolicy`
   in CloudFormation).
+
+  - Tagging an RDS database instance or an Aurora database cluster with
+    `StayStopped-Exclude` (see `ExcludeTagKey` in CloudFormation) prevents the
+    Step Function role from being misused to stop that database.
+    &#9888; Do not rely on
+    [attribute-based access control](https://docs.aws.amazon.com/IAM/latest/UserGuide/introduction_attribute-based-access-control.html)
+    unless you also prevent people and systems from adding, changing and
+    deleting ABAC tags.
 
 - Enable the test mode only in a non-critical AWS account and region, and turn
   the test mode off again as quickly as possible.

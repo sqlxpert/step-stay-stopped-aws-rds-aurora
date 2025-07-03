@@ -46,7 +46,6 @@ or an
 ||Step Function (here)|Lambda|
 |---:|:---:|:---:|
 |github.com/sqlxpert/|[**step**-stay-stopped-aws-rds-aurora](/../../#step-stay-stopped-rds-and-aurora)|[stay-stopped-aws-rds-aurora](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora#stay-stopped-rds-and-aurora)|
-|Status|Experimental|Supported|
 |[EventBridge rule](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-rules.html) target|Step Function|SQS&nbsp;queue, which feeds a Lambda&nbsp;function|
 |Lines of code|**&lt;&nbsp;200** JSON/[JSONata](https://docs.jsonata.org) lines|**&gt;&nbsp;300** Python lines|
 |Main file|[step_stay_stopped_aws_rds_aurora.asl.json](/step_stay_stopped_aws_rds_aurora.asl.json)|[stay_stopped_aws_rds_aurora.py](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora/blob/main/stay_stopped_aws_rds_aurora.py)|

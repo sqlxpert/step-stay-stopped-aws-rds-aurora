@@ -368,10 +368,11 @@ Resources:
             - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${StepFnRoleAttachLocalPolicyName}"
       Policies:
 
-        # In-line policies apply only to one role, which can only be assumed
-        # by AWS Step Functions. Separate, "managed" policies could be
-        # attached to other roles or users, allowing permission escalation.
-
+        # https://docs.aws.amazon.com/step-functions/latest/dg/cw-logs.html#cloudwatch-iam-policy
+        # https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/AWS-logs-and-resource-policy.html#AWS-logs-infrastructure-CWL
+        #
+        # CloudWatch log delivery does not support resource-level permissions.
+        # https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazoncloudwatchlogs.html#amazoncloudwatchlogs-actions-as-permissions
         - PolicyName: CloudWatchLogDeliveryRead
           PolicyDocument:
             Version: "2012-10-17"
@@ -383,12 +384,6 @@ Resources:
                   - logs:ListLogDeliveries
                   - logs:GetLogDelivery
                 Resource: "*"
-
-        # https://docs.aws.amazon.com/step-functions/latest/dg/cw-logs.html#cloudwatch-iam-policy
-        # https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/AWS-logs-and-resource-policy.html#AWS-logs-infrastructure-CWL
-        #
-        # CloudWatch log delivery does not support resource-level policies.
-        # https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazoncloudwatchlogs.html#amazoncloudwatchlogs-actions-as-permissions
         - PolicyName: CloudWatchLogDeliveryWrite
           PolicyDocument:
             Version: "2012-10-17"
@@ -435,17 +430,28 @@ Resources:
                   - !Sub "arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:db:*"
                   - !Sub "arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:cluster:*"
 
+        # JSON, so that an "aws:ResourceTag/tag-key" condition could be built
+        # up with substitutions, in the future. CloudFormation requires literal
+        # string keys, so !Sub "aws:ResourceTag/${TagKey}": "*" would give an
+        # "Unhashable type" error.
         - PolicyName: RdsWrite
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - rds:StopDBInstance
-                  - rds:StopDBCluster
-                Resource:
-                  - !Sub "arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:db:*"
-                  - !Sub "arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:cluster:*"
+          PolicyDocument: !Sub
+            - >-
+              {
+                "Version": "2012-10-17",
+                "Statement": [{
+                  "Effect": "Allow",
+                  "Action": [
+                    "rds:StopDBInstance",
+                    "rds:StopDBCluster"
+                  ],
+                  "Resource": [
+                    "arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:db:*",
+                    "arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:cluster:*"
+                  ]
+                }]
+              }
+            - PlaceholderKeyForFutureUse: PlaceholderValueForFutureUse
 
         # https://docs.aws.amazon.com/step-functions/latest/dg/encryption-at-rest.html#encrypt-logs
         - Fn::If:
@@ -557,8 +563,7 @@ Resources:
             Condition:
               ArnEquals:
                 "aws:SourceArn":
-                  - !GetAtt AuroraDbForcedStartToStepFnRule.Arn
-                  - !GetAtt RdsDbForcedStartToStepFnRule.Arn
+                  - !GetAtt DbForcedStartToStepFnRule.Arn
           - Sid: ExclusiveSources
             Effect: Deny
             Principal: "*"
@@ -567,96 +572,78 @@ Resources:
             Condition:
               ArnNotEquals:
                 "aws:SourceArn":
-                  - !GetAtt AuroraDbForcedStartToStepFnRule.Arn
-                  - !GetAtt RdsDbForcedStartToStepFnRule.Arn
+                  - !GetAtt DbForcedStartToStepFnRule.Arn
 
-  AuroraDbForcedStartToStepFnRule:
+  # https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_Events.Messages.html#USER_Events.Messages.cluster
+  # - RDS-EVENT-0153 "DB cluster is being started due to it exceeding the
+  #   maximum allowed time being stopped."
+  # - RDS-EVENT-0151 "DB cluster started." (testing)
+  #
+  # https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Events.Messages.html#USER_Events.Messages.instance
+  # - RDS-EVENT-0154 "DB instance is being started due to it exceeding the
+  #   maximum allowed time being stopped."
+  # - RDS-EVENT-0088 "DB instance started." (testing)
+  #   Warning: Aurora database instances have an event that is
+  #   indistinguishable at this level. Step Function ignores it.
+  #
+  # https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_Events.Messages.html#USER_Events.Messages.instance
+
+  DbForcedStartToStepFnRule:
     Type: AWS::Events::Rule
     Properties:
-      Description:
-        Fn::If:
-          - TestTrue
-          - !Sub >-
-              RDS-EVENT-0153 forced Aurora database cluster start after 7 days,
-              plus RDS-EVENT-0151 non-forced start for TEMPORARY TESTING,
-              to ${StepFn.Name}
-          - !Sub >-
-              RDS-EVENT-0153 forced Aurora database cluster start after 7 days,
-              to ${StepFn.Name}
-      EventPattern:
-        source: [ aws.rds ]
-        detail-type: [ RDS DB Cluster Event ]
-        detail:
-          EventID:
-
-            - RDS-EVENT-0153
-            # https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_Events.Messages.html#RDS-EVENT-0153
-            # "DB cluster is being started due to it exceeding the maximum
-            # allowed time being stopped."
-
-            - !If [ TestTrue, RDS-EVENT-0151, !Ref AWS::NoValue ]
-            # https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_Events.Messages.html#RDS-EVENT-0151
-            # "DB cluster started."
-
-          SourceType: [ CLUSTER ]
-          SourceIdentifier:
-            - anything-but:
-                - ""
-                # https://github.com/aws-cloudformation/cloudformation-coverage-roadmap/issues/1378
-                # - null
-        version: [ "0" ]
-      Targets:
-        - Id: !GetAtt StepFn.Name
-          RoleArn: !GetAtt ExecuteStepFnRole.Arn
-          Arn: !GetAtt StepFn.Arn
-          RetryPolicy:
-            MaximumRetryAttempts: 10
-            MaximumEventAgeInSeconds: 300  # 5 minutes
-          DeadLetterConfig: { Arn: !GetAtt ErrorQueue.Arn }
-      State: !If [ EnableTrue, ENABLED, DISABLED ]
-
-  RdsDbForcedStartToStepFnRule:
-    Type: AWS::Events::Rule
-    Properties:
-      Description:
-        Fn::If:
-          - TestTrue
-          - !Sub >-
-              RDS-EVENT-0154 forced RDS database instance start after 7 days,
-              plus RDS-EVENT-0088 non-forced start (ignored for instances in
-              Aurora clusters) for TEMPORARY TESTING,
-              to ${StepFn.Name}
-          - !Sub >-
-              RDS-EVENT-0154 forced RDS database instance start after 7 days,
-              to ${StepFn.Name}
-      EventPattern:
-        source: [ aws.rds ]
-        detail-type: [ RDS DB Instance Event ]
-        detail:
-          EventID:
-
-            - RDS-EVENT-0154
-            # https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Events.Messages.html#RDS-EVENT-0154
-            # "DB instance is being started due to it exceeding the maximum
-            # allowed time being stopped."
-
-            - !If [ TestTrue, RDS-EVENT-0088, !Ref AWS::NoValue ]
-            # https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Events.Messages.html#RDS-EVENT-0088
-            # "DB instance started."
-            #
-            # Warning: Aurora database instances have an event that is
-            # indistinguishable at this level. The AWS Step Function ignores
-            # it.
-            # https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_Events.Messages.html#RDS-EVENT-0088
-            # "DB instance started."
-
-          SourceType: [ DB_INSTANCE ]
-          SourceIdentifier:
-            - anything-but:
-                - ""
-                # https://github.com/aws-cloudformation/cloudformation-coverage-roadmap/issues/1378
-                # - null
-        version: [ "0" ]
+      Description: !Sub
+        - >-
+          Database start:
+          forced after 7 days:
+          RDS-EVENT-0153 (Aurora cluster),
+          RDS-EVENT-0154 (RDS instance)${TestDescription} to ${StepFn.Name}
+        - TestDescription: !If
+            - TestTrue
+            - >-
+              ; non-forced TEMPORARY TESTING:
+              RDS-EVENT-0151 (Aurora cluster),
+              RDS-EVENT-0088 (instance, ignored for Aurora);
+            - ""
+      EventPattern: !Sub
+        - >-
+          {
+            "version": [ "0" ],
+            "source": [ "aws.rds" ],
+            "detail": {
+              "SourceIdentifier": [ { "anything-but": [ "" ] } ],
+              "Date": [ { "anything-but": [ "" ] } ]
+            },
+            "$or": [
+              {
+                "detail-type": [ "RDS DB Cluster Event" ],
+                "detail": {
+                  "SourceType": [ "CLUSTER" ],
+                  "EventID": [ "RDS-EVENT-0153"${AuroraTestEvent} ]
+                }
+              },
+              {
+                "detail-type": [ "RDS DB Instance Event" ],
+                "detail": {
+                  "SourceType": [ "DB_INSTANCE" ],
+                  "EventID": [ "RDS-EVENT-0154"${RdsTestEvent} ]
+                }
+              }
+            ]
+          }
+        - AuroraTestEvent: !If
+            - TestTrue
+            - ', "RDS-EVENT-0151"'
+            - ""
+          RdsTestEvent: !If
+            - TestTrue
+            - ', "RDS-EVENT-0088"'
+            - ""
+      # Would prefer "anything-but": [ "", null ] . JSON EventPattern resolves:
+      # https://github.com/aws-cloudformation/cloudformation-coverage-roadmap/issues/1378
+      # but another limitation remains: "Event pattern is not valid. Reason:
+      # Inside anything but list, start|null|boolean is not supported."
+      # Handy for testing:
+      # https://console.aws.amazon.com/events/home#/explore
       Targets:
         - Id: !GetAtt StepFn.Name
           RoleArn: !GetAtt ExecuteStepFnRole.Arn

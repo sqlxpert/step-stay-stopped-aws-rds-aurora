@@ -607,21 +607,22 @@ Resources:
           {
             "version": [ "0" ],
             "source": [ "aws.rds" ],
-            "SourceIdentifier": [ { "anything-but": [ "" ] } ],
+            "detail": {
+              "SourceIdentifier": [ { "anything-but": [ "" ] } ],
+              "Date": [ { "anything-but": [ "" ] } ]
+            },
             "$or": [
               {
-                "SourceType": [ "CLUSTER" ],
                 "detail-type": [ "RDS DB Cluster Event" ],
                 "detail": {
-                  "Date": [ { "anything-but": [ "" ] } ],
+                  "SourceType": [ "CLUSTER" ],
                   "EventID": [ "RDS-EVENT-0153"${AuroraTestEvent} ]
                 }
               },
               {
-                "SourceType": [ "DB_INSTANCE" ],
                 "detail-type": [ "RDS DB Instance Event" ],
                 "detail": {
-                  "Date": [ { "anything-but": [ "" ] } ],
+                  "SourceType": [ "DB_INSTANCE" ],
                   "EventID": [ "RDS-EVENT-0154"${RdsTestEvent} ]
                 }
               }

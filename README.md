@@ -458,7 +458,7 @@ Check the:
     - The "State view" is useful for diagnosing errors.
     - Rows with "Caught error" in the "Status" column are expected and can be
       ignored if the "Reason" is `Rds.InvalidDbInstanceStateException` or
-      `Rds.InvalidDbClusterStateException`&nbsp.
+      `Rds.InvalidDbClusterStateException`&nbsp;.
 
  3. `StepStayStoppedRdsAurora-ErrorQueue` (dead letter)
     [SQS queue](https://console.aws.amazon.com/sqs/v3/home#/queues)

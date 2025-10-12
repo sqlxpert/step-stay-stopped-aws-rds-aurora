@@ -49,7 +49,7 @@ or an
 |[EventBridge rule](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-rules.html) target|Step Function|SQS&nbsp;queue, which feeds a Lambda&nbsp;function|
 |Lines of code|**&lt;&nbsp;200** JSON/[JSONata](https://docs.jsonata.org) lines|**&gt;&nbsp;300** Python lines|
 |Main file|[step_stay_stopped_aws_rds_aurora.asl.json](/step_stay_stopped_aws_rds_aurora.asl.json)|[stay_stopped_aws_rds_aurora.py](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora/blob/main/stay_stopped_aws_rds_aurora.py)|
-|Installation template|[step_stay_stopped_aws_rds_aurora.yaml](/step_stay_stopped_aws_rds_aurora.yaml)|[stay_stopped_aws_rds_aurora.yaml](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora/blob/main/stay_stopped_aws_rds_aurora.yaml)|
+|Installation template|[step_stay_stopped_aws_rds_aurora.yaml](/cloudformation/step_stay_stopped_aws_rds_aurora.yaml)|[stay_stopped_aws_rds_aurora.yaml](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora/blob/main/stay_stopped_aws_rds_aurora.yaml)|
 |API calls|[AWS SDK integration](https://docs.aws.amazon.com/step-functions/latest/dg/supported-services-awssdk.html)|[boto3 RDS client](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds.html)|
 |Decisions and branching|[Choice states](https://docs.aws.amazon.com/step-functions/latest/dg/state-choice.html)|Python control flow statements|
 |Error handling|[Catchers](https://docs.aws.amazon.com/step-functions/latest/dg/concepts-error-handling.html#error-handling-fallback-states) on task states|`try`...`except`|
@@ -297,7 +297,7 @@ document and explain your state machine. Here is my advice:
     [CloudFormation stack](https://console.aws.amazon.com/cloudformation/home)
     "With new resources (standard)". Select "Upload a template file", then
     select "Choose file" and navigate to a locally-saved copy of
-    [step_stay_stopped_aws_rds_aurora.yaml](/step_stay_stopped_aws_rds_aurora.yaml?raw=true)
+    [cloudformation/step_stay_stopped_aws_rds_aurora.yaml](/cloudformation/step_stay_stopped_aws_rds_aurora.yaml?raw=true)
     [right-click to save as...]. On the next page, set:
 
     - Stack name: `StepStayStoppedRdsAurora`
@@ -342,7 +342,7 @@ AWS account. To deploy in multiple regions and/or multiple AWS accounts,
     [CloudFormation StackSet](https://console.aws.amazon.com/cloudformation/home#/stacksets).
     Select "Upload a template file", then select "Choose file" and upload a
     locally-saved copy of
-    [step_stay_stopped_aws_rds_aurora.yaml](/step_stay_stopped_aws_rds_aurora.yaml?raw=true)
+    [cloudformation/step_stay_stopped_aws_rds_aurora.yaml](/scloudformation/tep_stay_stopped_aws_rds_aurora.yaml?raw=true)
     [right-click to save as...]. On the next page, set:
 
     - StackSet name: `StepStayStoppedRdsAurora`

@@ -1,0 +1,245 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: |-
+  CloudFormation service role to deploy
+
+  github.com/sqlxpert/step-stay-stopped-aws-rds-aurora  GPLv3  Copyright Paul Ma
+
+Parameters:
+
+  PlaceholderSuggestedStackName:
+    Type: String
+    Default: "StepStayStoppedRdsAuroraPrereq"
+
+  PlaceholderSuggestedStackPolicyBody:
+    Type: String
+    Default: "https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora/blob/main/cloudformation/step_stay_stopped_aws_rds_aurora_prereq_policy.json?raw=true"
+
+  PlaceholderHelp:
+    Type: String
+    Default: "github.com/sqlxpert/step-stay-stopped-aws-rds-aurora"
+
+  PlaceholderAdvancedParameters:
+    Type: String
+    Default: ""
+    AllowedValues:
+      - ""
+
+  StackNameLike:
+    Type: String
+    Description: >-
+      When a stack is created using the deployment role, its name must match
+      this StringLike/ArnLike pattern. Examples: "StepStayStoppedRdsAurora"
+      only allows a stack of that name; "StepStayStoppedRdsAurora*" also
+      allows stacks with names such as "StepStayStoppedRdsAurora2" and
+      "StepStayStoppedRdsAuroraTest"; and "StackSet-StepStayStoppedRdsAurora-*"
+      allows a StackSet named "StepStayStoppedRdsAurora", whose StackSet
+      instances receive names beginning "StackSet-StepStayStoppedRdsAurora-".
+      See
+      https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html
+
+    Default: "StepStayStoppedRdsAurora*"
+
+Metadata:
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: For Reference
+        Parameters:
+          - PlaceholderSuggestedStackName
+          - PlaceholderSuggestedStackPolicyBody
+          - PlaceholderHelp
+      - Label:
+          default: Advanced Options
+        Parameters:
+          - PlaceholderAdvancedParameters
+      - Label:
+          default: For stacks created using the deployment role...
+        Parameters:
+          - StackNameLike
+    ParameterLabels:
+      PlaceholderSuggestedStackName:
+        default: Suggested stack name
+      PlaceholderSuggestedStackPolicyBody:
+        default: Copy suggested stack policy from
+      PlaceholderHelp:
+        default: For help with this stack, see
+      PlaceholderAdvancedParameters:
+        default: Do not change parameters below, unless necessary!
+      StackNameLike:
+        default: Allowed stack name pattern
+
+Resources:
+
+  DeploymentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: >-
+        Resources in Step Stay-Stopped CloudFormation stack: create, update,
+        delete
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal: { Service: cloudformation.amazonaws.com }
+            Action: sts:AssumeRole
+      # In-line policies apply only to this role, which, in turn, can only be
+      # assumed by CloudFormation. Separate, "managed" policies could be
+      # attached to other roles or users, allowing permission escalation.
+      # Administrator should restrict iam:PassRole to prevent use of this role
+      # with arbitrary CloudFormation stacks.
+      Policies:
+        - PolicyName: StepStayStoppedCloudFormationStackDeploy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+
+              - Effect: Allow
+                Action:
+                  - states:CreateStateMachine  # Also iam:PassRole
+                  - states:DescribeStateMachine
+                  - states:UpdateStateMachine
+                  - states:DeleteStateMachine
+                  - states:PublishStateMachineVersion
+                  - states:ListStateMachineVersions
+                  - states:DeleteStateMachineVersion
+                  - states:TagResource
+                  - states:UntagResource
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:states:*:${AWS::AccountId}:stateMachine:${StackNameLike}-*"
+              - Effect: Allow
+                Action:
+                  - states:ValidateStateMachineDefinition
+                  - states:ListStateMachines
+                  - states:ListTagsForResource
+                Resource: "*"
+
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:DeleteLogGroup
+                  - logs:PutRetentionPolicy
+                  - logs:DeleteRetentionPolicy
+                  - logs:AssociateKmsKey
+                  - logs:DisassociateKmsKey
+                  - logs:TagLogGroup
+                  - logs:TagResource
+                  - logs:UntagLogGroup
+                  - logs:UntagResource
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:logs:*:${AWS::AccountId}:log-group:${StackNameLike}-*"
+              - Effect: Allow
+                Action:
+                  - logs:DescribeLogGroups
+                  - logs:ListTagsForResource
+                Resource: "*"
+
+              - Effect: Allow
+                Action:
+                  - events:PutRule
+                  - events:DescribeRule
+                  - events:EnableRule
+                  - events:DisableRule
+                  - events:DeleteRule
+                  - events:PutTargets
+                  - events:ListTargetsByRule
+                  - events:RemoveTargets
+                  - events:TagResource
+                  - events:UntagResource
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:events:*:${AWS::AccountId}:rule/${StackNameLike}-*"
+              - Effect: Allow
+                Action:
+                  - events:ListTagsForResource
+                Resource: "*"
+
+              - Effect: Allow
+                Action:
+                  - sqs:CreateQueue
+                  - sqs:SetQueueAttributes
+                  - sqs:GetQueueAttributes
+                  - sqs:GetQueueUrl
+                  - sqs:ListDeadLetterSourceQueues
+                  - sqs:DeleteQueue
+                  - sqs:AddPermission
+                  - sqs:RemovePermission
+                  - sqs:TagQueue
+                  - sqs:UntagQueue
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:sqs:*:${AWS::AccountId}:${StackNameLike}-*"
+              - Effect: Allow
+                Action:
+                  - sqs:ListQueues
+                  - sqs:ListQueueTags
+                Resource: "*"
+
+              - Effect: Allow
+                Action: iam:PassRole
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${StackNameLike}-*"
+                Condition:
+                  StringEquals:
+                    "iam:PassedToService":
+                      - events.amazonaws.com
+                      - states.amazonaws.com
+                  ArnLike:
+                    "iam:AssociatedResourceArn":
+                      - !Sub "arn:${AWS::Partition}:events:*:${AWS::AccountId}:rule/${StackNameLike}-*"
+                      - !Sub "arn:${AWS::Partition}:states:*:${AWS::AccountId}:stateMachine::${StackNameLike}-*"
+              - Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:UpdateRoleDescription
+                  - iam:GetRole
+                  - iam:DeleteRole
+                  - iam:UpdateAssumeRolePolicy
+                  - iam:ListRolePolicies
+                  - iam:GetRolePolicy
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:ListEntitiesForPolicy
+                  - iam:TagRole
+                  - iam:UntagRole
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${StackNameLike}-*"
+              - Effect: Allow
+                Action:
+                  - iam:ListRoles
+                  - iam:ListRoleTags
+                  - iam:ListAttachedRolePolicies
+                Resource: "*"
+
+              - Effect: Allow
+                Action:
+                  - kms:ListKeys
+                  - kms:ListAliases
+                  - kms:ListResourceTags
+                  - kms:DescribeKey
+                Resource: "*"
+
+  SampleDeploymentRolePassRolePol:
+    Type: "AWS::IAM::ManagedPolicy"
+    Properties:
+      Description:
+        Fn::Sub: >-
+          ${DeploymentRole}: pass to CloudFormation. Demonstrates a privilege
+          that non-adminstrators need before they can create a Step
+          Stay-Stopped CloudFormation stack using the deployment role.
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: "iam:PassRole"
+            Resource: !GetAtt DeploymentRole.Arn
+
+Outputs:
+
+  DeploymentRoleName:
+    Description: >-
+      Name (not ARN) of the service role (deployment role) that will be used to
+      deploy the Step Stay-Stopped CloudFormation stack.
+    Value: !Ref DeploymentRole

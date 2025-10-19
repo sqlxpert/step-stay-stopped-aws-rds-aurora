@@ -145,7 +145,7 @@ account) pair. To deploy in multiple regions and/or multiple AWS accounts,
       ```terraform
       module "step_stay_stopped_rds_stackset" {
         source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform-multi?ref=v2.0.0"
-        # Reference a specific version from github.com/sqlxpert/lights-off-aws/releases
+        # Reference a specific version from github.com/sqlxpert/step-stay-stopped-aws-rds-aurora/releases
 
         step_stay_stopped_rds_stackset_regions = ["us-east-1", "us-west-2", ]
         step_stay_stopped_rds_stackset_organizational_unit_names = [
@@ -182,10 +182,10 @@ resemble:
 ```terraform
 module "step_stay_stopped_rds" {
   source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform?ref=v2.0.0"
-  # Reference a specific version from github.com/sqlxpert/lights-off-aws/releases
+  # Reference a specific version from github.com/sqlxpert/step-stay-stopped-aws-rds-aurora/releases
 
-  for_each          = toset(["us-east-1", "us-west-2", ])
-  lights_off_region = each.key
+  for_each                     = toset(["us-east-1", "us-west-2", ])
+  step_stay_stopped_rds_region = each.key
 }
 ```
 
@@ -211,7 +211,7 @@ stack. (This is done for you if you use Terraform at Step&nbsp;3 of
 [Get Started](#get-started).)
 
 First, create the `StepStayStoppedRdsAuroraPrereq` stack from
-[cloudformation/lights_off_aws_prereq.yaml](/cloudformation/step_stay_stopped_aws_rds_aurora_prereq.yaml?raw=true)&nbsp;.
+[cloudformation/step_stay_stopped_aws_rds_aurora_prereq.yaml](/cloudformation/step_stay_stopped_aws_rds_aurora_prereq.yaml?raw=true)&nbsp;.
 
 Under "Additional settings" &rarr; "Stack policy - optional", you can "Upload a
 file" and select a locally-saved copy of

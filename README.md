@@ -165,7 +165,7 @@ behind the events and at one point jammed, thereby losing valuable information.
   [US Department of Energy Office of Scientific and Technical Information](https://www.osti.gov/biblio/6986994)
 - In the backup source, "2&frac12; hours" was mis-scanned as "2-k hours", an
   error that has been repeated as "2000 hours" in at least one book. The
-  printer backlog did not reach 83 days; 2&frac12; hours was bad enough!
+  printer backlog did not reach 83&nbsp;days; 2&frac12; hours was bad enough!
 
 </details>
 
@@ -285,24 +285,46 @@ document and explain your state machine. Here is my advice:
 
  1. Log in to the AWS Console as an administrator. Choose an AWS account and a
     region where you have an RDS or Aurora database that is normally stopped,
-    or that you can stop now and leave stopped for 8 days.
+    or that you can stop now and leave stopped for 8&nbsp;days.
 
- 2. If you used Stay-Stopped, the original, AWS Lambda-based variant,
-    - Delete your standalone `StayStoppedRdsAurora` CloudFormation _stack_, or
-    - Delete your `StayStoppedRdsAurora` CloudFormation _StackSet_, or set the
-      `Enable` parameter to "false" and then deploy the change to all existing
-      targets.
+ 2. If you used Stay-Stopped, the original, AWS Lambda-based variant, delete
+    any `StayStoppedRdsAurora` CloudFormation _stacks_, or delete the
+    `StayStoppedRdsAurora` CloudFormation _StackSet_.
 
- 3. Create a
-    [CloudFormation stack](https://console.aws.amazon.com/cloudformation/home)
-    "With new resources (standard)". Select "Upload a template file", then
-    select "Choose file" and navigate to a locally-saved copy of
-    [cloudformation/step_stay_stopped_aws_rds_aurora.yaml](/cloudformation/step_stay_stopped_aws_rds_aurora.yaml?raw=true)
-    [right-click to save as...]. On the next page, set:
+ 3. Install Step-Stay-Stopped using CloudFormation or Terraform.
 
-    - Stack name: `StepStayStoppedRdsAurora`
+    - **CloudFormation**<br/>_Easy_ &check;
 
- 4. Wait 8 days, then check that your
+      Create a
+      [CloudFormation stack](https://console.aws.amazon.com/cloudformation/home)
+      "With new resources (standard)".
+
+      Select "Upload a template file", then select "Choose file" and navigate
+      to a locally-saved copy of
+      [cloudformation/step_stay_stopped_aws_rds_aurora.yaml](/cloudformation/step_stay_stopped_aws_rds_aurora.yaml?raw=true)
+      [right-click to save as...].
+
+      On the next page, set:
+
+      - Stack name: `StepStayStoppedRdsAurora`
+
+    - **Terraform**
+
+      Check that you have at least:
+
+      - [Terraform v1.10.0 (2024-11-27)](https://github.com/hashicorp/terraform/releases/tag/v1.10.0)
+      - [Terraform AWS provider v6.0.0 (2025-06-18)](https://github.com/hashicorp/terraform-provider-aws/releases/tag/v6.0.0)
+
+      Add the following child module to your existing root module:
+
+      ```terraform
+      module "step_stay_stopped_rds" {
+        source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform?ref=v2.0.0"
+        # Reference a specific version from github.com/sqlxpert/step-stay-stopped-aws-rds-aurora/releases
+      }
+      ```
+
+ 4. Wait 8&nbsp;days, then check that your
     [RDS or Aurora database](https://console.aws.amazon.com/rds/home#databases:)
     is stopped. After clicking the RDS database instance name or the Aurora
     database cluster name, open the "Logs & events" tab and scroll to "Recent
@@ -316,55 +338,100 @@ document and explain your state machine. Here is my advice:
     |DB instance started|DB cluster started|
     |DB instance is being started due to it exceeding the maximum allowed time being stopped.|DB cluster is being started due to it exceeding the maximum allowed time being stopped.|
 
-    > If you don't want to wait 8 days, see
+    > If you don't want to wait 8&nbsp;days, see
     [Testing](#testing),
     below.
 
 ## Multi-Account, Multi-Region
 
-For reliability, Step-Stay-Stopped works independently in each region, in each
-AWS account. To deploy in multiple regions and/or multiple AWS accounts,
+For reliability, Step-Stay-Stopped works independently in each (region, AWS
+account) pair. To deploy in multiple regions and/or multiple AWS accounts,
 
  1. Delete any standalone `StepStayStoppedRdsAurora` CloudFormation _stacks_ in
     your target regions and/or AWS accounts.
 
- 2. If you used Stay-Stopped, the original, AWS Lambda-based variant,
-    - Delete any standalone `StayStoppedRdsAurora` CloudFormation _stacks_, or
-    - Delete your `StayStoppedRdsAurora` CloudFormation _StackSet_, or set the
-      `Enable` parameter to "false" and then deploy the change to all existing
-      targets.
+ 2. If you used Stay-Stopped, the original, AWS Lambda-based variant, delete
+    any `StayStoppedRdsAurora` CloudFormation _stacks_, or delete the
+    `StayStoppedRdsAurora` CloudFormation _StackSet_.
 
  3. Complete the prerequisites for creating a _StackSet_ with
     [service-managed permissions](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/stacksets-orgs-enable-trusted-access.html).
 
- 4. In the management AWS account (or a delegated administrator account),
-    create a
-    [CloudFormation StackSet](https://console.aws.amazon.com/cloudformation/home#/stacksets).
-    Select "Upload a template file", then select "Choose file" and upload a
-    locally-saved copy of
-    [cloudformation/step_stay_stopped_aws_rds_aurora.yaml](/scloudformation/tep_stay_stopped_aws_rds_aurora.yaml?raw=true)
-    [right-click to save as...]. On the next page, set:
+ 4. Install Step-Stay-Stopped as a CloudFormation StackSet, using
+    CloudFormation or Terraform. You must use your AWS organization's
+    management account, or a delegated administrator AWS account.
 
-    - StackSet name: `StepStayStoppedRdsAurora`
+    - **CloudFormation**<br/>_Easy_ &check;
 
- 5. Two pages later, under "Deployment targets", select "Deploy to
-    Organizational Units". Enter your target `ou-` identifier.
-    Step-Stay-Stopped will be deployed in all AWS accounts in your target OU.
-    Toward the bottom of the page, specify your target region(s).
+      Create a
+      [CloudFormation StackSet](https://console.aws.amazon.com/cloudformation/home#/stacksets).
+      Select "Upload a template file", then select "Choose file" and upload a
+      locally-saved copy of
+      [cloudformation/step_stay_stopped_aws_rds_aurora.yaml](/scloudformation/tep_stay_stopped_aws_rds_aurora.yaml?raw=true)
+      [right-click to save as...]. On the next page, set:
 
-## Terraform
+      - StackSet name: `StepStayStoppedRdsAurora`
 
-Terraform users are often willing to wrap a CloudFormation stack in HashiCorp
-Configuration Language, because AWS supplies tools in the form of
-CloudFormation templates. See
-[aws_cloudformation_stack](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudformation_stack)
-.
+      On the "Set deployment options" page, under "Accounts", select "Deploy
+      stacks in organizational units". Enter the `ou-` ID(s). Lights Off will
+      be deployed to all AWS accounts within the organizational unit(s). Next,
+      "Specify Regions".
 
-Wrapping a CloudFormation StackSet in HCL is much easier than configuring and
-using Terraform to deploy and maintain identical resources in multiple regions
-and/or AWS accounts. See
-[aws_cloudformation_stack_set](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudformation_stack_set)
-.
+    - **Terraform**
+
+      Your module block will now resemble:
+
+      ```terraform
+      module "step_stay_stopped_rds_stackset" {
+        source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform-multi?ref=v2.0.0"
+        # Reference a specific version from github.com/sqlxpert/lights-off-aws/releases
+
+        step_stay_stopped_rds_stackset_regions = ["us-east-1", "us-west-2", ]
+        step_stay_stopped_rds_stackset_organizational_unit_names = [
+          "MyOrganizationalUnit",
+        ]
+      }
+      ```
+
+      &#9888; **In Terraform, specify the name(s) of the target organization
+      unit(s)**, not the `ou-` ID(s).
+
+### Installation with Terraform
+
+[Get Started](#get-started)
+Step&nbsp;3 includes the option to install Step-Stay-Stopped as a Terraform
+module in one region in one AWS account. This is the basic `//terraform`
+module.
+
+The
+[enhanced region support](https://registry.terraform.io/providers/hashicorp/aws/6.0.0/docs/guides/enhanced-region-support)
+added in v6.0.0 of the Terraform AWS provider makes it possible to deploy
+resources in multiple regions _in one AWS account_ without configuring a
+separate provider for each region. Lights Off is compatible because the
+Terraform module was written for AWS provider v6, the original CloudFormation
+templates always let
+[CloudFormation assign unique physical names](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/resources-section-structure.html#resources-section-physical-id)
+to account-wide, non-regional resources like IAM roles, and the CloudFormation
+parameters were already region-independent. Your module block will now
+resemble:
+
+```terraform
+module "step_stay_stopped_rds" {
+  source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform?ref=v2.0.0"
+  # Reference a specific version from github.com/sqlxpert/lights-off-aws/releases
+
+  for_each          = toset(["us-east-1", "us-west-2", ])
+  lights_off_region = each.key
+}
+```
+
+For installation in multiple AWS accounts (regardless of the number of
+regions), wrapping a CloudFormation _StackSet_ in HashiCorp Configuration
+Language remains much easier than configuring Terraform to deploy identical
+resources in multiple AWS accounts. The
+[Multi-Account, Multi-Region (CloudFormation StackSet)](#multi-account-multi-region-cloudformation-stackset)
+installation instructions include the option to do this using a Terraform
+module, in Step&nbsp;4. This is the `//terraform-multi` module.
 
 ## Security
 
@@ -413,10 +480,10 @@ entirely at your own risk. You are encouraged to review the source code.
 - Prevent people from directly invoking the Step Function.
 
 - Separate production workloads. Although this tool only stops databases that
-  _AWS_ is starting after they've been stopped for 7 days, the Step Function
-  could stop _any_ database if invoked directly, with a contrived event as
-  input. You might choose not to deploy this tool in AWS accounts used for
-  production, or you might add a custom IAM policy to the function role,
+  _AWS_ is starting after they've been stopped for 7&nbsp;days, the Step
+  Function could stop _any_ database if invoked directly, with a contrived
+  event as input. You might choose not to deploy this tool in AWS accounts used
+  for production, or you might add a custom IAM policy to the function role,
   denying authority to stop certain production databases (`AttachLocalPolicy`
   in CloudFormation).
 
@@ -486,9 +553,9 @@ mention faster to create, stop, and start.
 
 ### Test Mode
 
-AWS starts RDS and Aurora databases that have been stopped for 7 days, but we
-need a faster mechanism for realistic, end-to-end testing. Temporarily change
-these parameters in CloudFormation:
+AWS starts RDS and Aurora databases that have been stopped for 7&nbsp;days, but
+we need a faster mechanism for realistic, end-to-end testing. Temporarily
+change these parameters:
 
 |Parameter|Normal|Test|
 |:---|:---:|:---:|

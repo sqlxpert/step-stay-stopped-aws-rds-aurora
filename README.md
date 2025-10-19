@@ -195,7 +195,7 @@ Language remains much easier than configuring Terraform to deploy identical
 resources in multiple AWS accounts. The
 [Multi-Account, Multi-Region](#multi-account-multi-region)
 installation instructions include the option to do this using a Terraform
-module, in Step&nbsp;4. This is the `//terraform-multi` module.
+module, at Step&nbsp;3. This is the `//terraform-multi` module.
 
 ## Least-Privilege Installation
 

@@ -448,7 +448,7 @@ start a stopped
 
 > In test mode, Step-Stay-Stopped also receives
 [RDS-EVENT-0088 (Aurora database instance)](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_Events.Messages.html#RDS-EVENT-0088).
-Internally, the code ignores it in favor of the cluster-level event.
+Internally, the Step Function ignores it in favor of the cluster-level event.
 
 ### Test by Invoking the Step Function
 

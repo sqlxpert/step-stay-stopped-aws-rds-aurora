@@ -4,7 +4,7 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: |-
   CloudFormation service role to deploy
 
-  github.com/sqlxpert/step-stay-stopped-aws-rds-aurora  GPLv3  Copyright Paul Ma
+  github.com/sqlxpert/step-stay-stopped-aws-rds-aurora  GPLv3  Copyright Paul Marcelin
 
 Parameters:
 
@@ -129,11 +129,14 @@ Resources:
                   - logs:UntagLogGroup
                   - logs:UntagResource
                 Resource:
-                  - !Sub "arn:${AWS::Partition}:logs:*:${AWS::AccountId}:log-group:${StackNameLike}-*"
+                  - !Sub "arn:${AWS::Partition}:logs:*:${AWS::AccountId}:log-group:/aws/vendedlogs/states/${StackNameLike}-*"
               - Effect: Allow
                 Action:
                   - logs:DescribeLogGroups
                   - logs:ListTagsForResource
+                  - logs:PutResourcePolicy
+                  - logs:DescribeResourcePolicies
+                  - logs:DeleteResourcePolicy
                 Resource: "*"
 
               - Effect: Allow
@@ -187,7 +190,7 @@ Resources:
                   ArnLike:
                     "iam:AssociatedResourceArn":
                       - !Sub "arn:${AWS::Partition}:events:*:${AWS::AccountId}:rule/${StackNameLike}-*"
-                      - !Sub "arn:${AWS::Partition}:states:*:${AWS::AccountId}:stateMachine::${StackNameLike}-*"
+                      - !Sub "arn:${AWS::Partition}:states:*:${AWS::AccountId}:stateMachine:${StackNameLike}-*"
               - Effect: Allow
                 Action:
                   - iam:CreateRole

@@ -348,16 +348,18 @@ For reliability, Step-Stay-Stopped works independently in each (region, AWS
 account) pair. To deploy in multiple regions and/or multiple AWS accounts,
 
  1. Delete any standalone `StepStayStoppedRdsAurora` CloudFormation _stacks_ in
-    your target regions and/or AWS accounts.
+    your target regions and/or AWS accounts (including any instances of the
+    basic `//terraform` module; you will be installing one instance of the
+    `//terraform-multi` module).
 
- 2. If you used Stay-Stopped, the original, AWS Lambda-based variant, delete
-    any `StayStoppedRdsAurora` CloudFormation _stacks_, or delete the
-    `StayStoppedRdsAurora` CloudFormation _StackSet_.
+    - If you used Stay-Stopped, the original, AWS Lambda-based variant, delete
+      any `StayStoppedRdsAurora` CloudFormation _stacks_, or delete the
+      `StayStoppedRdsAurora` CloudFormation _StackSet_.
 
- 3. Complete the prerequisites for creating a _StackSet_ with
+ 2. Complete the prerequisites for creating a _StackSet_ with
     [service-managed permissions](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/stacksets-orgs-enable-trusted-access.html).
 
- 4. Install Step-Stay-Stopped as a CloudFormation StackSet, using
+ 3. Install Step-Stay-Stopped as a CloudFormation StackSet, using
     CloudFormation or Terraform. You must use your AWS organization's
     management account, or a delegated administrator AWS account.
 
@@ -367,7 +369,7 @@ account) pair. To deploy in multiple regions and/or multiple AWS accounts,
       [CloudFormation StackSet](https://console.aws.amazon.com/cloudformation/home#/stacksets).
       Select "Upload a template file", then select "Choose file" and upload a
       locally-saved copy of
-      [cloudformation/step_stay_stopped_aws_rds_aurora.yaml](/scloudformation/step_stay_stopped_aws_rds_aurora.yaml?raw=true)
+      [cloudformation/step_stay_stopped_aws_rds_aurora.yaml](/cloudformation/step_stay_stopped_aws_rds_aurora.yaml?raw=true)
       [right-click to save as...]. On the next page, set:
 
       - StackSet name: `StepStayStoppedRdsAurora`

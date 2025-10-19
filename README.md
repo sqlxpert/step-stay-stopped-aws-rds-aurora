@@ -1,6 +1,6 @@
 # Step-Stay Stopped, RDS and Aurora!
 
-_Reliably keep AWS databases stopped when not needed, with a Step&nbsp;Function_
+_Reliably keep AWS databases stopped when not needed_
 
 ## Purpose
 

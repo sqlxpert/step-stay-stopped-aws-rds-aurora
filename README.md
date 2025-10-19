@@ -409,9 +409,9 @@ Check the:
 
 ### Recommended Test Database
 
-An RDS database instance ( `db.t4g.micro` , `20` GiB of gp3 storage, `0` days'
-worth of automated backups) is cheaper than a typical Aurora cluster, not to
-mention faster to create, stop, and start.
+An RDS database instance ( `db.t4g.micro` , 20&nbsp;GiB of gp3 storage,
+0&nbsp;days' worth of automated backups) is cheaper than a typical Aurora
+cluster, not to mention faster to create, stop, and start.
 
 ### Test Mode
 

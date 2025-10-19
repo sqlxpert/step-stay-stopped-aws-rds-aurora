@@ -367,7 +367,7 @@ account) pair. To deploy in multiple regions and/or multiple AWS accounts,
       [CloudFormation StackSet](https://console.aws.amazon.com/cloudformation/home#/stacksets).
       Select "Upload a template file", then select "Choose file" and upload a
       locally-saved copy of
-      [cloudformation/step_stay_stopped_aws_rds_aurora.yaml](/scloudformation/tep_stay_stopped_aws_rds_aurora.yaml?raw=true)
+      [cloudformation/step_stay_stopped_aws_rds_aurora.yaml](/scloudformation/step_stay_stopped_aws_rds_aurora.yaml?raw=true)
       [right-click to save as...]. On the next page, set:
 
       - StackSet name: `StepStayStoppedRdsAurora`
@@ -393,10 +393,13 @@ account) pair. To deploy in multiple regions and/or multiple AWS accounts,
       }
       ```
 
+      &#9888; Test mode is always disabled in this configuration. This is a
+      safeguard against unintended use in production.
+
       &#9888; **In Terraform, specify the name(s) of the target organization
       unit(s)**, not the `ou-` ID(s).
 
-### Installation with Terraform
+## Installation with Terraform
 
 [Get Started](#get-started)
 Step&nbsp;3 includes the option to install Step-Stay-Stopped as a Terraform
@@ -429,9 +432,99 @@ For installation in multiple AWS accounts (regardless of the number of
 regions), wrapping a CloudFormation _StackSet_ in HashiCorp Configuration
 Language remains much easier than configuring Terraform to deploy identical
 resources in multiple AWS accounts. The
-[Multi-Account, Multi-Region (CloudFormation StackSet)](#multi-account-multi-region-cloudformation-stackset)
+[Multi-Account, Multi-Region](#multi-account-multi-region)
 installation instructions include the option to do this using a Terraform
 module, in Step&nbsp;4. This is the `//terraform-multi` module.
+
+## Least-Privilege Installation
+
+<details>
+  <summary>Least-privilege installation details...</summary>
+
+### CloudFormation Stack Least-Privilege
+
+You can use a
+[CloudFormation service role](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-iam-servicerole.html)
+to delegate only the privileges needed to create the `StepStayStoppedRdsAurora`
+stack. (This is done for you if you use Terraform at Step&nbsp;3 of
+[Get Started](#get-started).)
+
+First, create the `StepStayStoppedRdsAuroraPrereq` stack from
+[cloudformation/lights_off_aws_prereq.yaml](/cloudformation/step_stay_stopped_aws_rds_aurora_prereq.yaml?raw=true)&nbsp;.
+
+Under "Additional settings" &rarr; "Stack policy - optional", you can "Upload a
+file" and select a locally-saved copy of
+[cloudformation/step_stay_stopped_aws_rds_aurora_prereq_policy.json.json](/cloudformation/step_stay_stopped_aws_rds_aurora_prereq_policy.json?raw=true)&nbsp;.
+The stack policy prevents inadvertent replacement or deletion of the deployment
+role during stack updates, but it cannot prevent deletion of the entire
+`StepStayStoppedRdsAuroraPrereq` stack.
+
+Next, when you create the `StepStayStoppedRdsAurora` stack from
+[cloudformation/step_stay_stopped_aws_rds_aurora.yaml](/cloudformation/step_stay_stopped_aws_rds_aurora.yaml?raw=true)&nbsp;,
+set "Permissions - optional" &rarr; "IAM role - optional" to
+`StepStayStoppedRdsAuroraPrereq-DeploymentRole`&nbsp;. If your own privileges
+are limited, you might need permission to pass the deployment role to
+CloudFormation. See the
+`StepStayStoppedRdsAuroraPrereq-SampleDeploymentRolePassRolePol` IAM policy for
+an example.
+
+### CloudFormation StackSet Least-Privilege
+
+For a CloudFormation _StackSet_, you can use
+[self-managed permissions](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/stacksets-prereqs-self-managed.html)
+by copying the inline IAM policy of
+`StepStayStoppedRdsAuroraPrereq-DeploymentRole` to a customer-managed IAM
+policy, attaching your policy to `AWSCloudFormationStackSetExecutionRole` and
+propagating the policy and the role policy attachment to all target AWS
+accounts.
+
+### Terraform Least-Privilege
+
+If you do not give Terraform full AWS administrative permissions, you must give
+it permission to:
+
+- List, describe, get tags for, create, tag, update, untag and delete
+  IAM roles, update the "assume role" (role trust or "resource-based")
+  policy, and put and delete in-line policies
+- List, describe, create, tag, update, untag, and delete CloudFormation
+  stacks
+- Set and get CloudFormation stack policies
+- Pass `StepStayStoppedRdsAuroraPrereq-DeploymentRole-*` to CloudFormation
+- List, describe, and get tags for, all `data` sources. For a list, run:
+
+  ```shell
+  grep 'data "' terraform*/*.tf | cut --delimiter=' ' --fields='1,2'
+  ```
+
+Open the
+[AWS Service Authorization Reference](https://docs.aws.amazon.com/service-authorization/latest/reference/reference_policies_actions-resources-contextkeys.html#actions_table),
+go through the list of services on the left, and consult the "Actions"
+table for each of:
+
+- `AWS Identity and Access Management (IAM)`
+- `CloudFormation`
+- `AWS Security Token Service`
+- `AWS Key Management Service` (if you encrypt the SQS queue or the CloudWatch
+  log group, or Step Function data, with KMS keys)
+- `AWS Organizations` (if you create a CloudFormation StackSet with the
+  `//terraform-multi` module)
+
+In most cases, you can scope Terraform's permissions to one workload by
+regulating resource naming and tagging, and then by using:
+
+- [ARN patterns in `Resource` lists](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_resource.html#reference_policies_elements_resource_wildcards)
+- [ARN patterns in `Condition` entries](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html#Conditions_ARN)
+- [Request tag and then resource tag `Condition` entries](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_tags.html)
+
+Check Service and Resource Control Policies (SCPs and RCPs), as well as
+resource policies (such as KMS key policies).
+
+The basic `//terraform` module creates the `StepStayStoppedRdsAuroraPrereq`
+stack, which defines the IAM role that gives CloudFormation the permissions it
+needs to create the `StepStayStoppedRdsAurora` stack. Terraform itself does not
+need the deployment role's permissions.
+
+</details>
 
 ## Security
 
@@ -507,6 +600,14 @@ entirely at your own risk. You are encouraged to review the source code.
 - Occasionally start a database before its maintenance window and leave it
   running, to catch up with RDS and Aurora security updates.
 
+- If you use Terraform, do not use it with an AWS access key and do not give it
+  full AWS administrative privileges. Instead, follow AWS's
+  [Best practices for using the Terraform AWS Provider: Security best practices](https://docs.aws.amazon.com/prescriptive-guidance/latest/terraform-aws-provider-best-practices/security.html).
+  Do the extra work of defining a least-privilege IAM role for deploying each
+  workload. Configure Terraform to assume workload-specific roles. The
+  CloudFormation service role is one element, but achieving least-privilege
+  also requires limiting Terraform's privileges.
+
 </details>
 
 ## Troubleshooting
@@ -568,7 +669,8 @@ change these parameters:
 
 **&#9888; Exit test mode as quickly as possible**, given the operational and
 security risks explained below. If your test database is ready, several minutes
-should be sufficient.
+should be sufficient. Test mode is always disabled in the `//terraform-multi`
+module.
 
 ### Test by Manually Starting a Database
 

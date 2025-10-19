@@ -4,7 +4,7 @@ _Reliably keep AWS databases stopped when not needed_
 
 ## Purpose
 
-This is the low-code, Step&nbsp;Function-based alternative to my original
+This is the low-code, Step&nbsp;Function-based replacement for my original
 Lambda-based tool for stopping RDS and Aurora databases that AWS has
 automatically started after the 7-day maximum stop period. Both use the same
 reliable process, free of
@@ -134,9 +134,9 @@ account) pair. To deploy in multiple regions and/or multiple AWS accounts,
       - StackSet name: `StepStayStoppedRdsAurora`
 
       On the "Set deployment options" page, under "Accounts", select "Deploy
-      stacks in organizational units". Enter the `ou-` ID(s). Lights Off will
-      be deployed to all AWS accounts within the organizational unit(s). Next,
-      "Specify Regions".
+      stacks in organizational units". Enter the `ou-` ID(s). Step-Stay-Stopped
+      will be deployed to all AWS accounts within the organizational unit(s).
+      Next, "Specify Regions".
 
     - **Terraform**
 
@@ -171,7 +171,7 @@ The
 [enhanced region support](https://registry.terraform.io/providers/hashicorp/aws/6.0.0/docs/guides/enhanced-region-support)
 added in v6.0.0 of the Terraform AWS provider makes it possible to deploy
 resources in multiple regions _in one AWS account_ without configuring a
-separate provider for each region. Lights Off is compatible because the
+separate provider for each region. Step-Stay-Stopped is compatible because the
 Terraform module was written for AWS provider v6, the original CloudFormation
 templates always let
 [CloudFormation assign unique physical names](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/resources-section-structure.html#resources-section-physical-id)

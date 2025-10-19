@@ -1,12 +1,13 @@
 # Step-Stay Stopped, RDS and Aurora!
 
-_Keep AWS databases stopped when not needed, with a Step Function_
+_Reliably keep AWS databases stopped when not needed, with a Step&nbsp;Function_
 
 ## Purpose
 
-This is a low-code, Step Function-based alternative to my Lambda-based tool for
-stopping RDS and Aurora databases that AWS has automatically started after the
-7-day maximum stop period. Both use the same reliable process, free of
+This is the low-code, Step&nbsp;Function-based alternative to my original
+Lambda-based tool for stopping RDS and Aurora databases that AWS has
+automatically started after the 7-day maximum stop period. Both use the same
+reliable process, free of
 [race conditions](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora#perspective)
 that might leave databases running without warning.
 
@@ -14,8 +15,6 @@ Jump to:
 [Get Started](#get-started)
 &bull;
 [Multi-Account, Multi-Region](#multi-account-multi-region)
-&bull;
-[Terraform](#terraform)
 &bull;
 [Security](#security)
 

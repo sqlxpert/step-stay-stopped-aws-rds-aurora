@@ -3,7 +3,7 @@
 
 
 
-variable "step_stay_stopped_rds_stack_name_suffix" {
+variable "stay_stopped_rds_stack_name_suffix" {
   type        = string
   description = "Optional CloudFormation StackSet name suffix, for blue/green deployments or other scenarios in which multiple StackSets created from the same template are needed."
 
@@ -13,36 +13,36 @@ variable "step_stay_stopped_rds_stack_name_suffix" {
 
 
 locals {
-  step_stay_stopped_rds_stackset_call_as_values = [
+  stay_stopped_rds_stackset_call_as_values = [
     "SELF",
     "DELEGATED_ADMIN"
   ]
 
-  step_stay_stopped_rds_stackset_call_as_values_string = join(
+  stay_stopped_rds_stackset_call_as_values_string = join(
     " , ",
-    local.step_stay_stopped_rds_stackset_call_as_values
+    local.stay_stopped_rds_stackset_call_as_values
   )
 }
 
-variable "step_stay_stopped_rds_stackset_call_as" {
+variable "stay_stopped_rds_stackset_call_as" {
   type        = string
   description = "The purpose of the AWS account from which the CloudFormation StackSet is being created: DELEGATED_ADMIN , or SELF for the management account."
 
   default = "SELF"
 
   validation {
-    error_message = "value must be one of: ${local.step_stay_stopped_rds_stackset_call_as_values_string} ."
+    error_message = "value must be one of: ${local.stay_stopped_rds_stackset_call_as_values_string} ."
 
     condition = contains(
-      local.step_stay_stopped_rds_stackset_call_as_values,
-      var.step_stay_stopped_rds_stackset_call_as
+      local.stay_stopped_rds_stackset_call_as_values,
+      var.stay_stopped_rds_stackset_call_as
     )
   }
 }
 
 
 
-variable "step_stay_stopped_rds_params" {
+variable "stay_stopped_rds_params" {
   type = object({
     Enable             = optional(bool, true)
     FollowUntilStopped = optional(bool, true)
@@ -79,12 +79,12 @@ variable "step_stay_stopped_rds_params" {
     # aws_cloudformation_stack_set.lifecycle.ignore_changes
   })
 
-  description = "Step Stay-Stopped CloudFormation StackSet parameter map. Keys, all optional, are parameter names from ../cloudformation/step_stay_stopped_aws_rds_aurora.yaml ; parameters are described there. CloudFormation and Terraform data types match, except for Boolean parameters. Terraform converts bool values to CloudFormation String values automatically."
+  description = "Step Stay-Stopped CloudFormation StackSet parameter map. Keys, all optional, are parameter names from ../cloudformation/step_stay_stopped_aws_rds_aurora.yaml ; parameters are described there. CloudFormation and Terraform data types match, except for Boolean parameters. Terraform converts bool values to CloudFormation String values automatically. In the StackSet, Test is always ignored and set to false , to prevent unintended use in production."
 
   default = {}
 }
 
-variable "step_stay_stopped_rds_tags" {
+variable "stay_stopped_rds_tags" {
   type        = map(string)
   description = "Tag map for CloudFormation StackSet. Keys, all optional, are tag keys. Values are tag values. This takes precedence over the Terraform AWS provider's default_tags and over tags attributes defined by the module. To remove tags defined by the module, set the terraform and source tags to null . Warnings: Each AWS service may have different rules for tag key and tag value lengths, characters, and disallowed tag key or tag value contents. CloudFormation propagates StackSet tags to stack instances and to resources. CloudFormation requires stack tag values to be at least 1 character long; empty tag values are not allowed."
 
@@ -94,7 +94,7 @@ variable "step_stay_stopped_rds_tags" {
     error_message = "CloudFormation requires StackSet tag values to be at least 1 character long; empty tag values are not allowed."
 
     condition = alltrue([
-      for value in values(var.step_stay_stopped_rds_tags) : try(length(value) >= 1, true)
+      for value in values(var.stay_stopped_rds_tags) : try(length(value) >= 1, true)
     ])
     # Use try to guard against length(null) . Allowing null is necessary here
     # as a means of preventing the setting of a given tag. The more explicit:
@@ -115,7 +115,7 @@ variable "step_stay_stopped_rds_tags" {
 # https://docs.aws.amazon.com/AWSCloudFormation/latest/APIReference/API_DeploymentTargets.html
 # https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudformation_stack_set_instance#parameter_overrides-1
 
-variable "step_stay_stopped_rds_stackset_organizational_unit_names" {
+variable "stay_stopped_rds_stackset_organizational_unit_names" {
   type        = list(string)
   description = "List of the names (not the IDs) of the organizational units in which to create instances of the CloudFormation StackSet. At least one is required. The organizational units must exist. Within a region, deployments will always proceed in alphabetical order by OU ID (not by name)."
 
@@ -123,21 +123,21 @@ variable "step_stay_stopped_rds_stackset_organizational_unit_names" {
     error_message = "At least one organizational unit name is required."
 
     condition = length(
-      var.step_stay_stopped_rds_stackset_organizational_unit_names
+      var.stay_stopped_rds_stackset_organizational_unit_names
     ) >= 1
   }
 }
 
-variable "step_stay_stopped_rds_stackset_regions" {
+variable "stay_stopped_rds_stackset_regions" {
   type        = list(string)
-  description = "List of region codes for the regions in which to create instances of the CloudFormation StackSet. The empty list causes the module to use step_stay_stopped_rds_region . Initial deployment will proceed in alphabetical order by region code."
+  description = "List of region codes for the regions in which to create instances of the CloudFormation StackSet. The empty list causes the module to use stay_stopped_rds_region . Initial deployment will proceed in alphabetical order by region code."
 
   default = []
 }
 
 
 
-variable "step_stay_stopped_rds_region" {
+variable "stay_stopped_rds_region" {
   type        = string
   description = "Region code for the region in which to create CloudFormation stacks. The empty string causes the module to use the default region configured for the Terraform AWS provider."
 

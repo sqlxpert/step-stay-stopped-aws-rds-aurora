@@ -77,7 +77,7 @@ or an
       Add the following child module to your existing root module:
 
       ```terraform
-      module "step_stay_stopped_rds" {
+      module "stay_stopped_rds" {
         source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform?ref=v2.0.0"
         # Reference a specific version from github.com/sqlxpert/step-stay-stopped-aws-rds-aurora/releases
       }
@@ -143,12 +143,12 @@ account) pair. To deploy in multiple regions and/or multiple AWS accounts,
       Your module block will now resemble:
 
       ```terraform
-      module "step_stay_stopped_rds_stackset" {
+      module "stay_stopped_rds_stackset" {
         source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform-multi?ref=v2.0.0"
         # Reference a specific version from github.com/sqlxpert/step-stay-stopped-aws-rds-aurora/releases
 
-        step_stay_stopped_rds_stackset_regions = ["us-east-1", "us-west-2", ]
-        step_stay_stopped_rds_stackset_organizational_unit_names = [
+        stay_stopped_rds_stackset_regions = ["us-east-1", "us-west-2", ]
+        stay_stopped_rds_stackset_organizational_unit_names = [
           "MyOrganizationalUnit",
         ]
       }
@@ -180,12 +180,12 @@ parameters were already region-independent. Your module block will now
 resemble:
 
 ```terraform
-module "step_stay_stopped_rds" {
+module "stay_stopped_rds" {
   source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform?ref=v2.0.0"
   # Reference a specific version from github.com/sqlxpert/step-stay-stopped-aws-rds-aurora/releases
 
-  for_each                     = toset(["us-east-1", "us-west-2", ])
-  step_stay_stopped_rds_region = each.key
+  for_each                = toset(["us-east-1", "us-west-2", ])
+  stay_stopped_rds_region = each.key
 }
 ```
 

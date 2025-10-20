@@ -3,16 +3,12 @@
 
 
 
-locals {
-  step_stay_stopped_rds_stackset_regions = (
-    length(var.step_stay_stopped_rds_stackset_regions) == 0
+data "aws_region" "stay_stopped_rds_stackset" {
+  for_each = toset(
+    length(var.stay_stopped_rds_stackset_regions) == 0
     ? [local.region]
-    : var.step_stay_stopped_rds_stackset_regions
+    : var.stay_stopped_rds_stackset_regions
   )
-}
-
-data "aws_region" "step_stay_stopped_rds_stackset" {
-  for_each = toset(local.step_stay_stopped_rds_stackset_regions)
 
   region = each.key
 }
@@ -20,9 +16,9 @@ data "aws_region" "step_stay_stopped_rds_stackset" {
 
 
 data "aws_organizations_organization" "current" {}
-data "aws_organizations_organizational_unit" "step_stay_stopped_rds_stackset" {
+data "aws_organizations_organizational_unit" "stay_stopped_rds_stackset" {
   for_each = toset(
-    var.step_stay_stopped_rds_stackset_organizational_unit_names
+    var.stay_stopped_rds_stackset_organizational_unit_names
   )
 
   parent_id = data.aws_organizations_organization.current.roots[0].id
@@ -35,18 +31,20 @@ data "aws_organizations_organizational_unit" "step_stay_stopped_rds_stackset" {
 # need operation_preferences . Updating aws_cloudformation_stack_set.parameters
 # affects all StackSet instances.
 
-resource "aws_cloudformation_stack_set" "step_stay_stopped_rds" {
-  name          = "StepStayStoppedRdsAurora${var.step_stay_stopped_rds_stack_name_suffix}"
+resource "aws_cloudformation_stack_set" "stay_stopped_rds" {
+  name          = "StepStayStoppedRdsAurora${var.stay_stopped_rds_stack_name_suffix}"
   template_body = file("${local.cloudformation_path}/step_stay_stopped_aws_rds_aurora.yaml")
 
   region = local.region
 
-  call_as          = var.step_stay_stopped_rds_stackset_call_as
+  call_as          = var.stay_stopped_rds_stackset_call_as
   permission_model = "SERVICE_MANAGED"
   capabilities     = ["CAPABILITY_IAM"]
 
   operation_preferences {
-    region_order            = sort(local.step_stay_stopped_rds_stackset_regions)
+    region_order = sort(
+      keys(data.aws_region.stay_stopped_rds_stackset)
+    )
     region_concurrency_type = "PARALLEL"
     max_concurrent_count    = 2
     failure_tolerance_count = 2
@@ -57,11 +55,11 @@ resource "aws_cloudformation_stack_set" "step_stay_stopped_rds" {
   }
 
   parameters = merge(
-    var.step_stay_stopped_rds_params,
+    var.stay_stopped_rds_params,
     { Test = false } # Security: Prevent unintended use in production
   )
 
-  tags = local.step_stay_stopped_rds_tags
+  tags = local.stay_stopped_rds_tags
 
   timeouts {
     update = "4h"
@@ -75,15 +73,17 @@ resource "aws_cloudformation_stack_set" "step_stay_stopped_rds" {
   }
 }
 
-resource "aws_cloudformation_stack_set_instance" "step_stay_stopped_rds" {
-  for_each = data.aws_region.step_stay_stopped_rds_stackset
+resource "aws_cloudformation_stack_set_instance" "stay_stopped_rds" {
+  for_each = data.aws_region.stay_stopped_rds_stackset
 
-  stack_set_name = aws_cloudformation_stack_set.step_stay_stopped_rds.name
+  stack_set_name = aws_cloudformation_stack_set.stay_stopped_rds.name
 
-  call_as = var.step_stay_stopped_rds_stackset_call_as
+  call_as = var.stay_stopped_rds_stackset_call_as
 
   operation_preferences {
-    region_order            = sort(local.step_stay_stopped_rds_stackset_regions)
+    region_order = sort(
+      keys(data.aws_region.stay_stopped_rds_stackset)
+    )
     region_concurrency_type = "PARALLEL"
     max_concurrent_count    = 2
     failure_tolerance_count = 2
@@ -93,7 +93,7 @@ resource "aws_cloudformation_stack_set_instance" "step_stay_stopped_rds" {
   deployment_targets {
     organizational_unit_ids = sort([
       for organizational_unit_key, organizational_unit
-      in data.aws_organizations_organizational_unit.step_stay_stopped_rds_stackset
+      in data.aws_organizations_organizational_unit.stay_stopped_rds_stackset
       : organizational_unit.id
     ])
   }

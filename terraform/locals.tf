@@ -4,14 +4,16 @@
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 locals {
-  caller_arn_parts = provider::aws::arn_parse(data.aws_caller_identity.current.arn)
+  caller_arn_parts = provider::aws::arn_parse(
+    data.aws_caller_identity.current.arn
+  )
   # Provider functions added in Terraform v1.8.0
   # arn_parse added in Terraform AWS provider v5.40.0
 
   partition = local.caller_arn_parts["partition"]
 
   region = coalesce(
-    var.step_stay_stopped_rds_region,
+    var.stay_stopped_rds_region,
     data.aws_region.current.region
   )
   # data.aws_region.region added,
@@ -21,7 +23,7 @@ locals {
   cloudformation_path = "${path.module}/../cloudformation"
 
   module_directory = basename(path.module)
-  step_stay_stopped_rds_tags = merge(
+  stay_stopped_rds_tags = merge(
     {
       terraform = "1"
       # CloudFormation stack tag values must be at least 1 character long!
@@ -29,6 +31,6 @@ locals {
 
       source = "https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora/blob/main/${local.module_directory}"
     },
-    var.step_stay_stopped_rds_tags,
+    var.stay_stopped_rds_tags,
   )
 }

@@ -725,7 +725,7 @@ Resources:
       # Handy for testing:
       # https://console.aws.amazon.com/events/home#/explore
       Targets:
-        - Id: !GetAtt StepFn.Name
+        - Id: "StepStayStoppedRdsAurora-StepFn"
           RoleArn: !GetAtt ExecuteStepFnRole.Arn
           Arn: !GetAtt StepFn.Arn
           RetryPolicy:

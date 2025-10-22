@@ -96,11 +96,16 @@ Resources:
             Version: "2012-10-17"
             Statement:
 
+              - Sid: SeeAlsoIamAndKms
+                Effect: Allow
+                Action:
+                  - states:CreateStateMachine
+                  - states:UpdateStateMachine
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:states:*:${AWS::AccountId}:stateMachine:${StackNameLike}-*"
               - Effect: Allow
                 Action:
-                  - states:CreateStateMachine  # Also iam:PassRole
                   - states:DescribeStateMachine
-                  - states:UpdateStateMachine
                   - states:DeleteStateMachine
                   - states:PublishStateMachineVersion
                   - states:ListStateMachineVersions
@@ -139,6 +144,12 @@ Resources:
                   - logs:DeleteResourcePolicy
                 Resource: "*"
 
+              - Sid: SeeAlsoIam
+                Effect: Allow
+                Action:
+                  - events:PutTargets
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:events:*:${AWS::AccountId}:rule/${StackNameLike}-*"
               - Effect: Allow
                 Action:
                   - events:PutRule
@@ -146,7 +157,6 @@ Resources:
                   - events:EnableRule
                   - events:DisableRule
                   - events:DeleteRule
-                  - events:PutTargets
                   - events:ListTargetsByRule
                   - events:RemoveTargets
                   - events:TagResource
@@ -178,7 +188,8 @@ Resources:
                   - sqs:ListQueueTags
                 Resource: "*"
 
-              - Effect: Allow
+              - Sid: ForEventBridgeEventPutTargets
+                Effect: Allow
                 Action: iam:PassRole
                 Resource:
                   - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${StackNameLike}-*"
@@ -186,10 +197,20 @@ Resources:
                   StringEquals:
                     "iam:PassedToService":
                       - events.amazonaws.com
-                      - states.amazonaws.com
                   ArnLike:
                     "iam:AssociatedResourceArn":
                       - !Sub "arn:${AWS::Partition}:events:*:${AWS::AccountId}:rule/${StackNameLike}-*"
+              - Sid: ForCreateUpdateStateMachine
+                Effect: Allow
+                Action: iam:PassRole
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${StackNameLike}-*"
+                Condition:
+                  StringEquals:
+                    "iam:PassedToService":
+                      - states.amazonaws.com
+                  ArnLike:
+                    "iam:AssociatedResourceArn":
                       - !Sub "arn:${AWS::Partition}:states:*:${AWS::AccountId}:stateMachine:${StackNameLike}-*"
               - Effect: Allow
                 Action:
@@ -216,6 +237,24 @@ Resources:
                   - iam:ListAttachedRolePolicies
                 Resource: "*"
 
+              - Sid: ForCreateUpdateStateMachineWithKmsEncryptedCloudWatchLogGroup
+                Effect: Allow
+                Action:
+                  - kms:GenerateDataKey
+                  - kms:Decrypt
+                Resource: "*"
+                Condition:
+                  StringLike:
+                    "kms:EncryptionContext:aws:states:stateMachineArn":
+                      - !Sub "arn:${AWS::Partition}:states:*:${AWS::AccountId}:stateMachine:${StackNameLike}-*"
+                # Security: Allows use of a custom KMS key housed in the same
+                # AWS account as a Step-Stay-Stopped CloudFormation stack,
+                # without specific permission in the key policy. To prevent
+                # unforeseen additional use of a same-account KMS key, you
+                # would have to remove the standard "Enable IAM User
+                # Permissions" statement from the key policy.
+                # https://docs.aws.amazon.com/step-functions/latest/dg/encryption-at-rest.html#create-state-machine
+                # https://docs.aws.amazon.com/kms/latest/developerguide/key-policy-default.html#key-policy-default-allow-root-enable-iam
               - Effect: Allow
                 Action:
                   - kms:ListKeys

@@ -6,7 +6,7 @@ _Reliably keep AWS databases stopped when not needed_
 
 This is the low-code, Step&nbsp;Function-based replacement for my original
 Lambda-based tool for stopping RDS and Aurora databases that AWS has
-automatically started after the 7-day maximum stop period. Both use the same
+automatically started after the 7-day maximum stop period. It uses the same
 reliable process, free of
 [race conditions](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora#perspective)
 that might leave databases running without warning.

@@ -4,11 +4,10 @@
 
 
 data "aws_region" "stay_stopped_rds_stackset" {
-  for_each = toset(
-    length(var.stay_stopped_rds_stackset_regions) == 0
-    ? [local.region]
-    : var.stay_stopped_rds_stackset_regions
-  )
+  for_each = toset(coalescelist(
+    var.stay_stopped_rds_stackset_regions,
+    [local.region]
+  ))
 
   region = each.key
 }

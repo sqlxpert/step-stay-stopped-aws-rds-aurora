@@ -78,7 +78,7 @@ or an
 
       ```terraform
       module "stay_stopped_rds" {
-        source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform?ref=v2.1.0"
+        source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform?ref=v2.2.0"
         # Reference a specific version from github.com/sqlxpert/step-stay-stopped-aws-rds-aurora/releases
       }
       ```
@@ -144,7 +144,7 @@ account) pair. To deploy in multiple regions and/or multiple AWS accounts,
 
       ```terraform
       module "stay_stopped_rds_stackset" {
-        source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform-multi?ref=v2.1.0"
+        source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform-multi?ref=v2.2.0"
         # Reference a specific version from github.com/sqlxpert/step-stay-stopped-aws-rds-aurora/releases
 
         stay_stopped_rds_stackset_regions = ["us-east-1", "us-west-2", ]
@@ -181,7 +181,7 @@ resemble:
 
 ```terraform
 module "stay_stopped_rds" {
-  source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform?ref=v2.1.0"
+  source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform?ref=v2.2.0"
   # Reference a specific version from github.com/sqlxpert/step-stay-stopped-aws-rds-aurora/releases
 
   for_each                = toset(["us-east-1", "us-west-2", ])

@@ -3,7 +3,7 @@
 
 
 
-variable "stay_stopped_rds_stack_name_suffix" {
+variable "stay_stopped_rds_stackset_name_suffix" {
   type        = string
   description = "Optional CloudFormation StackSet name suffix, for blue/green deployments or other scenarios in which multiple StackSets created from the same template are needed."
 
@@ -42,7 +42,7 @@ variable "stay_stopped_rds_stackset_call_as" {
 
 
 
-variable "stay_stopped_rds_params" {
+variable "stay_stopped_rds_stackset_params" {
   type = object({
     Enable             = optional(bool, true)
     FollowUntilStopped = optional(bool, true)

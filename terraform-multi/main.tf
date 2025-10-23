@@ -31,7 +31,7 @@ data "aws_organizations_organizational_unit" "stay_stopped_rds_stackset" {
 # affects all StackSet instances.
 
 resource "aws_cloudformation_stack_set" "stay_stopped_rds" {
-  name          = "StepStayStoppedRdsAurora${var.stay_stopped_rds_stack_name_suffix}"
+  name          = "StepStayStoppedRdsAurora${var.stay_stopped_rds_stackset_name_suffix}"
   template_body = file("${local.cloudformation_path}/step_stay_stopped_aws_rds_aurora.yaml")
 
   region = local.region
@@ -54,7 +54,7 @@ resource "aws_cloudformation_stack_set" "stay_stopped_rds" {
   }
 
   parameters = merge(
-    var.stay_stopped_rds_params,
+    var.stay_stopped_rds_stackset_params,
     { Test = false } # Security: Prevent unintended use in production
   )
 

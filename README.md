@@ -1,12 +1,13 @@
 # Step-Stay Stopped, RDS and Aurora!
 
-_Keep AWS databases stopped when not needed, with a Step Function_
+_Reliably keep AWS databases stopped when not needed_
 
 ## Purpose
 
-This is a low-code, Step Function-based alternative to my Lambda-based tool for
-stopping RDS and Aurora databases that AWS has automatically started after the
-7-day maximum stop period. Both use the same reliable process, free of
+This is the low-code, Step&nbsp;Function-based replacement for my original
+Lambda-based tool for stopping RDS and Aurora databases that AWS has
+automatically started after the 7-day maximum stop period. It uses the same
+reliable process, free of
 [race conditions](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora#perspective)
 that might leave databases running without warning.
 
@@ -14,8 +15,6 @@ Jump to:
 [Get Started](#get-started)
 &bull;
 [Multi-Account, Multi-Region](#multi-account-multi-region)
-&bull;
-[Terraform](#terraform)
 &bull;
 [Security](#security)
 
@@ -41,268 +40,50 @@ or an
 [Aurora database cluster is stopped](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-cluster-stop-start.html#aurora-cluster-start-stop-overview).
 (Other charges, such as for storage and snapshots, continue.)
 
-## Comparison
-
-||Step Function (here)|Lambda|
-|---:|:---:|:---:|
-|github.com/sqlxpert/|[**step**-stay-stopped-aws-rds-aurora](/../../#step-stay-stopped-rds-and-aurora)|[stay-stopped-aws-rds-aurora](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora#stay-stopped-rds-and-aurora)|
-|[EventBridge rule](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-rules.html) target|Step Function|SQS&nbsp;queue, which feeds a Lambda&nbsp;function|
-|Lines of code|**&lt;&nbsp;200** JSON/[JSONata](https://docs.jsonata.org) lines|**&gt;&nbsp;300** Python lines|
-|Main file|[step_stay_stopped_aws_rds_aurora.asl.json](/step_stay_stopped_aws_rds_aurora.asl.json)|[stay_stopped_aws_rds_aurora.py](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora/blob/main/stay_stopped_aws_rds_aurora.py)|
-|Installation template|[step_stay_stopped_aws_rds_aurora.yaml](/step_stay_stopped_aws_rds_aurora.yaml)|[stay_stopped_aws_rds_aurora.yaml](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora/blob/main/stay_stopped_aws_rds_aurora.yaml)|
-|API calls|[AWS SDK integration](https://docs.aws.amazon.com/step-functions/latest/dg/supported-services-awssdk.html)|[boto3 RDS client](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds.html)|
-|Decisions and branching|[Choice states](https://docs.aws.amazon.com/step-functions/latest/dg/state-choice.html)|Python control flow statements|
-|Error handling|[Catchers](https://docs.aws.amazon.com/step-functions/latest/dg/concepts-error-handling.html#error-handling-fallback-states) on task states|`try`...`except`|
-|Retry mechanism|[Wait state](https://docs.aws.amazon.com/step-functions/latest/dg/state-wait.html)|[Queue message [in]visibility&nbsp;timeout](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html)|
-|Initial delay mechanism|Same wait&nbsp;state, entered&nbsp;immediately|[First-time delivery&nbsp;delay](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-delay-queues.html)|
-|Timeout mechanism|[State machine TimeoutSeconds](https://docs.aws.amazon.com/step-functions/latest/dg/statemachine-structure.html#statemachinetimeoutseconds)|[maxReceiveCount](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html#policies-for-dead-letter-queues)|
-
-<details>
-  <summary>If you have time, don't miss: Step Function advantages and disadvantages...</summary>
-
-### Step Function Advantages
-
-#### 1. Faster development, testing and debugging
-
-Quite frankly, it is a miracle that **fewer than 200 lines of JSON can replace
-more than 300 lines of executable Python** code. Development is significantly
-faster, whether you add states visually or you compose or edit the JSON code
-manually.
-
-Testing and debugging are moderately faster. Although a correct state machine,
-able to handle error conditions, is liable to be more complex than the
-initial, normal-case design, even a complex state machine diagram becomes
-readable when the Step Functions console marks it up with the traversal from a
-particular run. Click below to view an example. Next, click for the "State
-view", a tabular summary. Not shown is the "Event view", a complete log of the
-payload at the start and end of each state, plus data available for use within
-the scope of one state (such as an API response).
-
-[<img src="media/step-function-debug-flow-follow-true.png" alt="A 'Pass' state assigns constants and extracts the database identifier from the event. After a 'Wait' state, a 'Choice' state chooses between cluster or instance, if the event has not expired. Because this event is for a database instance, a 'Task' state that calls 'Stop Database Instance' is entered. The other states described are green, whereas this one is yellow. From an arrow labeled 'Catch #1', execution continues with a 'Task' state that calls 'Describe Database Instances' followed by a 'Choice' state that chooses between different database status values. Because the database is in the desired state, the 'Succeed' state is entered." height="144" />](media/step-function-debug-flow-follow-true.png?raw=true "Automatically-generated Step Function state machine execution diagram")
-
-[<img src="media/step-function-debug-list.png" alt="The table for one execution of a Step Function state machine has columns for state 'Name', state 'Type', and exit 'Status'. This execution traverses 7 states. Notably, the 'Stop Database Instance' state exits with a caught error. Next, the 'Describe Database Instances' state succeeds. Execution ends in the 'Succeed' state." height="144" />](media/step-function-debug-list.png?raw=true "Step Function state machine execution state list view")
-
-This example shows an idempotence test: trying to stop an RDS database instance
-that was already stopping or stopped.
-
-#### 2. Less maintenance
-
-Clearly, Step Functions require less maintenance. Although Step Functions may
-call AWS Lambda functions, many problems can be solved without recourse to
-Lambda, so that there is no software to patch &mdash; not even a runtime to
-update every few months.
-
-#### 3. Even lower compute cost
-
-Step Functions are perfect for processes that require lots of wall-clock time
-but little actual computing time, such as waiting for a database to start and
-then seeing a stop request through until the database is stopped again.
-The
-[Step Function standard mode price is 25&cent; per 10,000 transitions](https://aws.amazon.com/step-functions/pricing/#AWS_Step_Functions_Standard_Workflow_State_transitions_pricing)
-(arrows traversed, on the state machine diagram), regardless of time spent
-(the pricing basis for AWS Lambda). To put this in perspective, if we ignore
-negligible numbers of startup and shutdown transitions, a cycle of 4 (Aurora)
-or 5 (RDS) state transitions repeats every 9 minutes from the time AWS starts a
-database until the database is stopped again.
-
-Step Function logs tend to be noisier, as explained below, so volume-sensitive
-logging costs could be higher.
-
-Prices vary by region, and might change.
-
-### Step Function Disadvantages
-
-#### 1. Inconsistent error names
-
-These inconsistencies are bugs waiting to happen. Here are two key
-StopDBInstance errors:
-
-||Cannot Be Stopped Now|Cannot Be Stopped Ever|
-|---:|:---|:---|
-|Dynamic boto3 exception: `Client("rds").exceptions.`|[`InvalidDBInstanceStateFault`](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds/client/stop_db_instance.html)||
-|Static boto3 [ClientError](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/error-handling.html#parsing-error-responses-and-catching-exceptions-from-aws-services) exception `Code`|`InvalidDBInstanceState`|`InvalidParameterCombination`|
-|AWS API error|[`InvalidDBInstanceState`](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_StopDBInstance.html#API_StopDBInstance_Errors)||
-|Step Function `ErrorEquals` match: `Rds.`|`InvalidDbInstanceStateException`|`RdsException`|
-
-There is even a
-[special note about the `Exception` suffix](https://docs.aws.amazon.com/step-functions/latest/dg/supported-services-awssdk.html#use-awssdk-integ)!
-
-#### 2. Rudimentary retries
-
-[boto3 can retry automatically](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/retries.html#standard-retry-mode)
-in response to 18 exceptions and 4 general HTTP status codes. You'd have to
-experiment to discover the Step Function service's name for each of the 22
-error conditions (there is no comprehensive document), list all 22 in the
-`ErrorEquals` field of the
-[retrier](https://docs.aws.amazon.com/step-functions/latest/dg/concepts-error-handling.html#error-handling-retrying-after-an-error),
-and then duplicate the list in every state that makes an AWS API request.
-That's just not practical.
-
-Thankfully, stopping an RDS or Aurora database is a watch-and-wait operation.
-Natural retries with long pauses in between make it unnecessary to match
-boto3's diligent retry logic, meant more for single, critical AWS API calls.
-
-#### 3. Less logging control
-
-Logs should be kept clear so that critical problems stand out, if the fable
-[The Boy Who Cried Wolf](https://en.wikipedia.org/wiki/The_Boy_Who_Cried_Wolf),
-the saying "All emphasis is no emphasis",
-and the
-[Three Mile Island nuclear accident](https://en.wikipedia.org/wiki/Three_Mile_Island_accident)
-are any guide.
-
-> The computer printer registering alarms was running more than 2&frac12; hours
-behind the events and at one point jammed, thereby losing valuable information.
-
-<details>
-  <summary>Reference...</summary>
-
-- _Report of the President's Commission on the Accident at Three Mile Island_,
-  October, 1979, Page 30
-- Direct link:
-  [archive.org](https://archive.org/details/three-mile-island-report/page/30/mode/1up)
-- Backup:
-  [US Department of Energy Office of Scientific and Technical Information](https://www.osti.gov/biblio/6986994)
-- In the backup source, "2&frac12; hours" was mis-scanned as "2-k hours", an
-  error that has been repeated as "2000 hours" in at least one book. The
-  printer backlog did not reach 83 days; 2&frac12; hours was bad enough!
-
-</details>
-
-The Step Function service logs any exception at the `ERROR` level. I cannot
-choose to log expected exceptions (such as InvalidDBClusterState when calling
-StopDBCluster while an Aurora database is `starting` and while it's `stopping`)
-at the `INFO` level and spare the `ERROR` level for exceptions that require
-attention.
-
-In fact,
-[Step Function log levels](https://docs.aws.amazon.com/step-functions/latest/dg/cw-logs.html#cloudwatch-log-level)
-skip directly from `ALL` to `ERROR`. Without an `INFO` level, it's impossible
-to log successful database stop operations without throwing in `DEBUG`-level
-details too.
-
-#### 4. Complex diagrams
-
-Reliably re-stopping an RDS or Aurora database &mdash; that is, avoiding
-[race conditions](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora#perspective)
-that might leave the database running at your expense, without warning you
-&mdash; is a complex process. The Step Functions console generates hard-to-read
-diagrams with tiny text, truncated labels, and unnecessary cross-overs. A
-diagram's explanatory value falls off as soon as you add error-handling logic
-to your state machine. This is more a missed opportunity than a disadvantage.
-Other services give you no diagram, so you have to make your own. The Step
-Functions console gives you a bad diagram that you can't edit, so you still
-have to make your own.
-
-Compare:
-
-[<img src="media/step-stay-stopped-aws-rds-aurora-flow-auto-follow-true-thumb.png" alt="A 'Wait' state flows into a 'Choice' state named 'If Event Not Expired Choose Cluster Or Instance', which branches out to 'Stop Database Instance' and 'Stop Database Cluster' states. The 'Stop Database Instance' state feeds into a 'Describe Database Instances' state. The 'Describe Database Instances' and 'Stop Database Cluster' states both feed into a 'Choice' state named 'Database Status', which branches back to 'Wait', or out to the 'Succeed' state. This summarizes an error-free run." height="144" />](media/step-stay-stopped-aws-rds-aurora-flow-auto-follow-true.png?raw=true "Automatically-generated state machine diagram for the Amazon Web Services Step Function solution")
-[<img src="media/stay-stopped-aws-rds-aurora-architecture-and-flow-thumb.png" alt="Relational Database Service Event Bridge events '0153' and '0154' (database started after exceeding 7-day maximum stop time) go to the main Simple Queue Service queue, where messages are initially delayed 9 minutes. The Amazon Web Services Lambda function stops the RDS instance or the Aurora cluster. If the database's status is invalid, the queue message becomes visible again in 9 minutes. A final status of 'stopping', 'deleting' or 'deleted' ends retries. This summarizes an error-free run." height="144" />](media/stay-stopped-aws-rds-aurora-architecture-and-flow.png?raw=true "Custom architecture diagram and flowchart for the Amazon Web Services Lambda solution")
-
-### The Step Function Wins!
-
-**The advantages of a Step Function far outweigh the disadvantages.** If you
-take the time to understand the _semantics_ of AWS APIs and build appropriate
-error-handling logic into your state machine &mdash; in other words, if your
-solution is _correct_ &mdash; then a compact, predominantly declarative
-implementation with a graphical representation cuts development time,
-simplifies testing, and reduces maintenance effort.
-
-AWS is actively improving the service. For example, the
-[transition from JSONPath to JSONata](https://aws.amazon.com/blogs/compute/simplifying-developer-experience-with-variables-and-jsonata-in-aws-step-functions/),
-begun in 2024, has significantly increased the declarative capabilities of Step
-Functions. It's possible that some of the disadvantages I noticed will be
-addressed in the future.
-
-### Step Function Clarity
-
-Given the complexity of correct error-handling logic, and the weaknesses of the
-Step Function console's automatically-generated diagrams, it's important to
-document and explain your state machine. Here is my advice:
-
- 1. Choose descriptive state names. For example, I changed `Dispatch` to
-    `IfEventNotExpiredChooseClusterOrInstance`.
-
- 2. Append a question mark (`?`) to the name of a straightforward binary Choice
-    state.
-
- 3. Include the same root word(s) in a related AWS API method name, AWS API
-    method parameter name, AWS resource name, ARN component, state machine
-    variable name, JSONanata variable name, state `Output` key, state name,
-    `ErrorEquals` error name, and/or CloudFormation substitution parameter
-    name.
-
- 4. Front-load distinguishing information to guard against truncation in
-    state machine diagrams. For example, the important information in this pair
-    of Boolean expressions for Choice state rules comes first:
-    - `'available' = states.input.DbStatus`
-    - `'stopping' = states.input.DbStatus`
-
- 5. Don't add `Comment` keys or `/* JSONata comments */` if the information is
-    obvious from the state name, a Boolean expression in a Choice rule, an
-    `ErrorEquals` error name, or some other proximate clue.
-    - As of June, 2025, the Step Function console labels Choice rule branches
-      with `Comment` values, but numbers Catch branches even if they have
-      comments.
-    - Add a comment if a term cannot be used in searches. Search features don't
-      allow, or don't do a good job with: symbols; the definite article "the";
-      other short "stop-words"; and words with two or more popular meanings.
-      For example, without the comment, this JSONata expression:
-
-      ```jsonata
-      $states.input ~> |$|{}, ['Error', 'Cause']| /* https://docs.jsonata.org/other-operators#-------transform */
-      ```
-
-      would give no clue about what to search for. It is impossible to search
-      for `|` or `$`, and probably for `~>` too. I would make sure at least one
-      occurrence received a comment.
-
- 6. Although a JSON object's keys form a set, and sets are unordered, changing
-    the order of the keys in a state machine's JSON definition code after the
-    fact will make the definition easier for other people to understand. I like
-    to place the `States` keys in temporal order. Within each state object
-    and any nested objects, I like to place the keys in the order in which they
-    will be referenced.
-    - A logical order would be:<br/>
-      `Type`;<br/>
-      `Choices`, or `Resource`, `Arguments`, and `TimeoutSeconds`, or
-      `Catch`;<br/>
-      `Condition` or `ErrorEquals`;<br/>
-      `Variables`, `Output`, and `Next`.
-    - A `Comment`, if needed, should go above, between or below the keys it
-      describes.
-    - If similar objects are repeated, put the keys whose values distinguish
-      the objects near the top. Draw attention to differences.
-
- 7. Don't hesitate to add extra Pass and Choice states so that the state names
-    themselves explain discrete steps in a process. (Minimize the number of
-    state transitions in cycles that will be traversed many times. In standard
-    mode, AWS charges per state transition.)
-
-</details>
-
 ## Get Started
 
  1. Log in to the AWS Console as an administrator. Choose an AWS account and a
     region where you have an RDS or Aurora database that is normally stopped,
-    or that you can stop now and leave stopped for 8 days.
+    or that you can stop now and leave stopped for 8&nbsp;days.
 
- 2. If you used Stay-Stopped, the original, AWS Lambda-based variant,
-    - Delete your standalone `StayStoppedRdsAurora` CloudFormation _stack_, or
-    - Delete your `StayStoppedRdsAurora` CloudFormation _StackSet_, or set the
-      `Enable` parameter to "false" and then deploy the change to all existing
-      targets.
+ 2. If you used Stay-Stopped, the original, AWS Lambda-based variant, delete
+    any `StayStoppedRdsAurora` CloudFormation _stacks_, or delete the
+    `StayStoppedRdsAurora` CloudFormation _StackSet_.
 
- 3. Create a
-    [CloudFormation stack](https://console.aws.amazon.com/cloudformation/home)
-    "With new resources (standard)". Select "Upload a template file", then
-    select "Choose file" and navigate to a locally-saved copy of
-    [step_stay_stopped_aws_rds_aurora.yaml](/step_stay_stopped_aws_rds_aurora.yaml?raw=true)
-    [right-click to save as...]. On the next page, set:
+ 3. Install Step-Stay-Stopped using CloudFormation or Terraform.
 
-    - Stack name: `StepStayStoppedRdsAurora`
+    - **CloudFormation**<br/>_Easy_ &check;
 
- 4. Wait 8 days, then check that your
+      Create a
+      [CloudFormation stack](https://console.aws.amazon.com/cloudformation/home)
+      "With new resources (standard)".
+
+      Select "Upload a template file", then select "Choose file" and navigate
+      to a locally-saved copy of
+      [cloudformation/step_stay_stopped_aws_rds_aurora.yaml](/cloudformation/step_stay_stopped_aws_rds_aurora.yaml?raw=true)
+      [right-click to save as...].
+
+      On the next page, set:
+
+      - Stack name: `StepStayStoppedRdsAurora`
+
+    - **Terraform**
+
+      Check that you have at least:
+
+      - [Terraform v1.10.0 (2024-11-27)](https://github.com/hashicorp/terraform/releases/tag/v1.10.0)
+      - [Terraform AWS provider v6.0.0 (2025-06-18)](https://github.com/hashicorp/terraform-provider-aws/releases/tag/v6.0.0)
+
+      Add the following child module to your existing root module:
+
+      ```terraform
+      module "stay_stopped_rds" {
+        source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform?ref=v2.0.0"
+        # Reference a specific version from github.com/sqlxpert/step-stay-stopped-aws-rds-aurora/releases
+      }
+      ```
+
+ 4. Wait 8&nbsp;days, then check that your
     [RDS or Aurora database](https://console.aws.amazon.com/rds/home#databases:)
     is stopped. After clicking the RDS database instance name or the Aurora
     database cluster name, open the "Logs & events" tab and scroll to "Recent
@@ -316,55 +97,195 @@ document and explain your state machine. Here is my advice:
     |DB instance started|DB cluster started|
     |DB instance is being started due to it exceeding the maximum allowed time being stopped.|DB cluster is being started due to it exceeding the maximum allowed time being stopped.|
 
-    > If you don't want to wait 8 days, see
+    > If you don't want to wait 8&nbsp;days, see
     [Testing](#testing),
     below.
 
 ## Multi-Account, Multi-Region
 
-For reliability, Step-Stay-Stopped works independently in each region, in each
-AWS account. To deploy in multiple regions and/or multiple AWS accounts,
+For reliability, Step-Stay-Stopped works independently in each (region, AWS
+account) pair. To deploy in multiple regions and/or multiple AWS accounts,
 
  1. Delete any standalone `StepStayStoppedRdsAurora` CloudFormation _stacks_ in
-    your target regions and/or AWS accounts.
+    your target regions and/or AWS accounts (including any instances of the
+    basic `//terraform` module; you will be installing one instance of the
+    `//terraform-multi` module).
 
- 2. If you used Stay-Stopped, the original, AWS Lambda-based variant,
-    - Delete any standalone `StayStoppedRdsAurora` CloudFormation _stacks_, or
-    - Delete your `StayStoppedRdsAurora` CloudFormation _StackSet_, or set the
-      `Enable` parameter to "false" and then deploy the change to all existing
-      targets.
+    - If you used Stay-Stopped, the original, AWS Lambda-based variant, delete
+      any `StayStoppedRdsAurora` CloudFormation _stacks_, or delete the
+      `StayStoppedRdsAurora` CloudFormation _StackSet_.
 
- 3. Complete the prerequisites for creating a _StackSet_ with
+ 2. Complete the prerequisites for creating a _StackSet_ with
     [service-managed permissions](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/stacksets-orgs-enable-trusted-access.html).
 
- 4. In the management AWS account (or a delegated administrator account),
-    create a
-    [CloudFormation StackSet](https://console.aws.amazon.com/cloudformation/home#/stacksets).
-    Select "Upload a template file", then select "Choose file" and upload a
-    locally-saved copy of
-    [step_stay_stopped_aws_rds_aurora.yaml](/step_stay_stopped_aws_rds_aurora.yaml?raw=true)
-    [right-click to save as...]. On the next page, set:
+ 3. Install Step-Stay-Stopped as a CloudFormation StackSet, using
+    CloudFormation or Terraform. You must use your AWS organization's
+    management account, or a delegated administrator AWS account.
 
-    - StackSet name: `StepStayStoppedRdsAurora`
+    - **CloudFormation**<br/>_Easy_ &check;
 
- 5. Two pages later, under "Deployment targets", select "Deploy to
-    Organizational Units". Enter your target `ou-` identifier.
-    Step-Stay-Stopped will be deployed in all AWS accounts in your target OU.
-    Toward the bottom of the page, specify your target region(s).
+      Create a
+      [CloudFormation StackSet](https://console.aws.amazon.com/cloudformation/home#/stacksets).
+      Select "Upload a template file", then select "Choose file" and upload a
+      locally-saved copy of
+      [cloudformation/step_stay_stopped_aws_rds_aurora.yaml](/cloudformation/step_stay_stopped_aws_rds_aurora.yaml?raw=true)
+      [right-click to save as...]. On the next page, set:
 
-## Terraform
+      - StackSet name: `StepStayStoppedRdsAurora`
 
-Terraform users are often willing to wrap a CloudFormation stack in HashiCorp
-Configuration Language, because AWS supplies tools in the form of
-CloudFormation templates. See
-[aws_cloudformation_stack](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudformation_stack)
-.
+      On the "Set deployment options" page, under "Accounts", select "Deploy
+      stacks in organizational units". Enter the `ou-` ID(s). Step-Stay-Stopped
+      will be deployed to all AWS accounts within the organizational unit(s).
+      Next, "Specify Regions".
 
-Wrapping a CloudFormation StackSet in HCL is much easier than configuring and
-using Terraform to deploy and maintain identical resources in multiple regions
-and/or AWS accounts. See
-[aws_cloudformation_stack_set](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudformation_stack_set)
-.
+    - **Terraform**
+
+      Your module block will now resemble:
+
+      ```terraform
+      module "stay_stopped_rds_stackset" {
+        source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform-multi?ref=v2.0.0"
+        # Reference a specific version from github.com/sqlxpert/step-stay-stopped-aws-rds-aurora/releases
+
+        stay_stopped_rds_stackset_regions = ["us-east-1", "us-west-2", ]
+        stay_stopped_rds_stackset_organizational_unit_names = [
+          "MyOrganizationalUnit",
+        ]
+      }
+      ```
+
+      Test mode is always disabled in this configuration. This is a safeguard
+      against unintended use in production.
+
+      &#9888; **In Terraform, specify the name(s) of the target organization
+      unit(s)**, not the `ou-` ID(s).
+
+## Installation with Terraform
+
+[Get Started](#get-started)
+Step&nbsp;3 includes the option to install Step-Stay-Stopped as a Terraform
+module in one region in one AWS account. This is the basic `//terraform`
+module.
+
+The
+[enhanced region support](https://registry.terraform.io/providers/hashicorp/aws/6.0.0/docs/guides/enhanced-region-support)
+added in v6.0.0 of the Terraform AWS provider makes it possible to deploy
+resources in multiple regions _in one AWS account_ without configuring a
+separate provider for each region. Step-Stay-Stopped is compatible because the
+Terraform module was written for AWS provider v6, the original CloudFormation
+templates always let
+[CloudFormation assign unique physical names](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/resources-section-structure.html#resources-section-physical-id)
+to account-wide, non-regional resources like IAM roles, and the CloudFormation
+parameters were already region-independent. Your module block will now
+resemble:
+
+```terraform
+module "stay_stopped_rds" {
+  source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform?ref=v2.0.0"
+  # Reference a specific version from github.com/sqlxpert/step-stay-stopped-aws-rds-aurora/releases
+
+  for_each                = toset(["us-east-1", "us-west-2", ])
+  stay_stopped_rds_region = each.key
+}
+```
+
+For installation in multiple AWS accounts (regardless of the number of
+regions), wrapping a CloudFormation _StackSet_ in HashiCorp Configuration
+Language remains much easier than configuring Terraform to deploy identical
+resources in multiple AWS accounts. The
+[Multi-Account, Multi-Region](#multi-account-multi-region)
+installation instructions include the option to do this using a Terraform
+module, at Step&nbsp;3. This is the `//terraform-multi` module.
+
+## Least-Privilege Installation
+
+<details>
+  <summary>Least-privilege installation details...</summary>
+
+### CloudFormation Stack Least-Privilege
+
+You can use a
+[CloudFormation service role](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-iam-servicerole.html)
+to delegate only the privileges needed to create the `StepStayStoppedRdsAurora`
+stack. (This is done for you if you use Terraform at Step&nbsp;3 of
+[Get Started](#get-started).)
+
+First, create the `StepStayStoppedRdsAuroraPrereq` stack from
+[cloudformation/step_stay_stopped_aws_rds_aurora_prereq.yaml](/cloudformation/step_stay_stopped_aws_rds_aurora_prereq.yaml?raw=true)&nbsp;.
+
+Under "Additional settings" &rarr; "Stack policy - optional", you can "Upload a
+file" and select a locally-saved copy of
+[cloudformation/step_stay_stopped_aws_rds_aurora_prereq_policy.json.json](/cloudformation/step_stay_stopped_aws_rds_aurora_prereq_policy.json?raw=true)&nbsp;.
+The stack policy prevents inadvertent replacement or deletion of the deployment
+role during stack updates, but it cannot prevent deletion of the entire
+`StepStayStoppedRdsAuroraPrereq` stack.
+
+Next, when you create the `StepStayStoppedRdsAurora` stack from
+[cloudformation/step_stay_stopped_aws_rds_aurora.yaml](/cloudformation/step_stay_stopped_aws_rds_aurora.yaml?raw=true)&nbsp;,
+set "Permissions - optional" &rarr; "IAM role - optional" to
+`StepStayStoppedRdsAuroraPrereq-DeploymentRole`&nbsp;. If your own privileges
+are limited, you might need permission to pass the deployment role to
+CloudFormation. See the
+`StepStayStoppedRdsAuroraPrereq-SampleDeploymentRolePassRolePol` IAM policy for
+an example.
+
+### CloudFormation StackSet Least-Privilege
+
+For a CloudFormation _StackSet_, you can use
+[self-managed permissions](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/stacksets-prereqs-self-managed.html)
+by copying the inline IAM policy of
+`StepStayStoppedRdsAuroraPrereq-DeploymentRole` to a customer-managed IAM
+policy, attaching your policy to `AWSCloudFormationStackSetExecutionRole` and
+propagating the policy and the role policy attachment to all target AWS
+accounts.
+
+### Terraform Least-Privilege
+
+If you do not give Terraform full AWS administrative permissions, you must give
+it permission to:
+
+- List, describe, get tags for, create, tag, update, untag and delete
+  IAM roles, update the "assume role" (role trust or "resource-based")
+  policy, and put and delete in-line policies
+- List, describe, create, tag, update, untag, and delete CloudFormation
+  stacks
+- Set and get CloudFormation stack policies
+- Pass `StepStayStoppedRdsAuroraPrereq-DeploymentRole-*` to CloudFormation
+- List, describe, and get tags for, all `data` sources. For a list, run:
+
+  ```shell
+  grep 'data "' terraform*/*.tf | cut --delimiter=' ' --fields='1,2'
+  ```
+
+Open the
+[AWS Service Authorization Reference](https://docs.aws.amazon.com/service-authorization/latest/reference/reference_policies_actions-resources-contextkeys.html#actions_table),
+go through the list of services on the left, and consult the "Actions"
+table for each of:
+
+- `AWS Identity and Access Management (IAM)`
+- `CloudFormation`
+- `AWS Security Token Service`
+- `AWS Key Management Service` (if you encrypt the SQS queue or the CloudWatch
+  log group, or Step Function data, with KMS keys)
+- `AWS Organizations` (if you create a CloudFormation StackSet with the
+  `//terraform-multi` module)
+
+In most cases, you can scope Terraform's permissions to one workload by
+regulating resource naming and tagging, and then by using:
+
+- [ARN patterns in `Resource` lists](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_resource.html#reference_policies_elements_resource_wildcards)
+- [ARN patterns in `Condition` entries](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html#Conditions_ARN)
+- [Request tag and then resource tag `Condition` entries](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_tags.html)
+
+Check Service and Resource Control Policies (SCPs and RCPs), as well as
+resource policies (such as KMS key policies).
+
+The basic `//terraform` module creates the `StepStayStoppedRdsAuroraPrereq`
+stack, which defines the IAM role that gives CloudFormation the permissions it
+needs to create the `StepStayStoppedRdsAurora` stack. Terraform itself does not
+need the deployment role's permissions.
+
+</details>
 
 ## Security
 
@@ -413,10 +334,10 @@ entirely at your own risk. You are encouraged to review the source code.
 - Prevent people from directly invoking the Step Function.
 
 - Separate production workloads. Although this tool only stops databases that
-  _AWS_ is starting after they've been stopped for 7 days, the Step Function
-  could stop _any_ database if invoked directly, with a contrived event as
-  input. You might choose not to deploy this tool in AWS accounts used for
-  production, or you might add a custom IAM policy to the function role,
+  _AWS_ is starting after they've been stopped for 7&nbsp;days, the Step
+  Function could stop _any_ database if invoked directly, with a contrived
+  event as input. You might choose not to deploy this tool in AWS accounts used
+  for production, or you might add a custom IAM policy to the function role,
   denying authority to stop certain production databases (`AttachLocalPolicy`
   in CloudFormation).
 
@@ -439,6 +360,14 @@ entirely at your own risk. You are encouraged to review the source code.
 
 - Occasionally start a database before its maintenance window and leave it
   running, to catch up with RDS and Aurora security updates.
+
+- If you use Terraform, do not use it with an AWS access key and do not give it
+  full AWS administrative privileges. Instead, follow AWS's
+  [Best practices for using the Terraform AWS Provider: Security best practices](https://docs.aws.amazon.com/prescriptive-guidance/latest/terraform-aws-provider-best-practices/security.html).
+  Do the extra work of defining a least-privilege IAM role for deploying each
+  workload. Configure Terraform to assume workload-specific roles. The
+  CloudFormation service role is one element, but achieving least-privilege
+  also requires limiting Terraform's privileges.
 
 </details>
 
@@ -480,15 +409,15 @@ Check the:
 
 ### Recommended Test Database
 
-An RDS database instance ( `db.t4g.micro` , `20` GiB of gp3 storage, `0` days'
-worth of automated backups) is cheaper than a typical Aurora cluster, not to
-mention faster to create, stop, and start.
+An RDS database instance ( `db.t4g.micro` , 20&nbsp;GiB of gp3 storage,
+0&nbsp;days' worth of automated backups) is cheaper than a typical Aurora
+cluster, not to mention faster to create, stop, and start.
 
 ### Test Mode
 
-AWS starts RDS and Aurora databases that have been stopped for 7 days, but we
-need a faster mechanism for realistic, end-to-end testing. Temporarily change
-these parameters in CloudFormation:
+AWS starts RDS and Aurora databases that have been stopped for 7&nbsp;days, but
+we need a faster mechanism for realistic, end-to-end testing. Temporarily
+change these parameters:
 
 |Parameter|Normal|Test|
 |:---|:---:|:---:|
@@ -501,7 +430,8 @@ these parameters in CloudFormation:
 
 **&#9888; Exit test mode as quickly as possible**, given the operational and
 security risks explained below. If your test database is ready, several minutes
-should be sufficient.
+should be sufficient. Test mode is always disabled in the `//terraform-multi`
+module.
 
 ### Test by Manually Starting a Database
 
@@ -518,7 +448,7 @@ start a stopped
 
 > In test mode, Step-Stay-Stopped also receives
 [RDS-EVENT-0088 (Aurora database instance)](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_Events.Messages.html#RDS-EVENT-0088).
-Internally, the code ignores it in favor of the cluster-level event.
+Internally, the Step Function ignores it in favor of the cluster-level event.
 
 ### Test by Invoking the Step Function
 

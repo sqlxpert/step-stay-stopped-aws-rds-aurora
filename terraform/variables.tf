@@ -40,10 +40,10 @@ variable "stay_stopped_rds_params" {
     IncludeExecutionDataInLog     = optional(bool, true)
     LogLevel                      = optional(string, "ERROR")
 
-    # Repeat defaults from ../cloudformation/step_stay_stopped_aws_rds_aurora.yaml
+    # Repeat defaults from cloudformation/step_stay_stopped_aws_rds_aurora.yaml
   })
 
-  description = "Step Stay-Stopped CloudFormation stack parameter map. Keys, all optional, are parameter names from ../cloudformation/step_stay_stopped_aws_rds_aurora.yaml ; parameters are described there. CloudFormation and Terraform data types match, except for Boolean parameters. Terraform converts bool values to CloudFormation String values automatically. Specifying a value other than the empty string for StepFnRoleAttachLocalPolicyName , StepFnKmsKey , SqsKmsKey or CloudWatchLogsKmsKey causes Terraform to look up the resource, which must exist."
+  description = "Step Stay-Stopped CloudFormation stack parameter map. Keys, all optional, are parameter names from cloudformation/step_stay_stopped_aws_rds_aurora.yaml ; parameters are described there. CloudFormation and Terraform data types match, except for Boolean parameters. Terraform converts bool values to CloudFormation String values automatically. Specifying a value other than the empty string for StepFnRoleAttachLocalPolicyName , StepFnKmsKey , SqsKmsKey or CloudWatchLogsKmsKey causes Terraform to look up the resource, which must exist."
 
   default = {}
 }

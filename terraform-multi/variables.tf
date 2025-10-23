@@ -139,7 +139,7 @@ variable "stay_stopped_rds_stackset_regions" {
 
 variable "stay_stopped_rds_region" {
   type        = string
-  description = "Region code for the region in which to create CloudFormation stacks. The empty string causes the module to use the default region configured for the Terraform AWS provider."
+  description = "Region code for the region from which to create the CloudFormation StackSet. The empty string causes the module to use the default region configured for the Terraform AWS provider."
 
   default = ""
 }

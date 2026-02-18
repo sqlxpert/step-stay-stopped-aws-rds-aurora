@@ -58,6 +58,8 @@ variable "stay_stopped_rds_stackset_params" {
     SqsKmsKey                       = optional(string, "")
     CloudWatchLogsKmsKey            = optional(string, "")
 
+    ErrorQueueAdditionalPolicyStatements = optional(string, "")
+
     StepFnTaskTimeoutSeconds = optional(number, 30)
     StepFnWaitSeconds        = optional(number, 540)
     StepFnTimeoutSeconds     = optional(number, 86400)
@@ -79,7 +81,7 @@ variable "stay_stopped_rds_stackset_params" {
     # aws_cloudformation_stack_set.lifecycle.ignore_changes
   })
 
-  description = "Step Stay-Stopped CloudFormation StackSet parameter map. Keys, all optional, are parameter names from cloudformation/step_stay_stopped_aws_rds_aurora.yaml ; parameters are described there. CloudFormation and Terraform data types match, except for Boolean parameters. Terraform converts bool values to CloudFormation String values automatically. In the StackSet, Test is always ignored and set to false , to prevent unintended use in production."
+  description = "Step Stay-Stopped CloudFormation StackSet parameter map. Keys, all optional, are parameter names from cloudformation/step_stay_stopped_aws_rds_aurora.yaml ; parameters are described there. CloudFormation and Terraform data types match, except for Boolean parameters. Terraform converts bool values to CloudFormation String values automatically. In the StackSet, Test is always ignored and set to false , to prevent unintended use in production. Follow Terraform string escape rules for double quotation marks, etc. inside ErrorQueueAdditionalPolicyStatements ."
 
   default = {}
 }

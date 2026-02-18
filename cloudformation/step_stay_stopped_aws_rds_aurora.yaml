@@ -131,6 +131,16 @@ Parameters:
       primary key itself) must exist in every target region.
     Default: ""
 
+  ErrorQueueAdditionalPolicyStatements:
+    Type: String
+    Description: >-
+      Additional statements for the error queue policy. The least-privilege
+      default is the empty string. For each custom statement, including the
+      first or only one, specify a comma and a JSON object. You could allow
+      access from a central monitoring account, for example. See
+      https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-creating-custom-policies.html
+    Default: ''  # Values might contain double quotation marks!
+
   StepFnTaskTimeoutSeconds:
     Type: Number
     Description: >-
@@ -267,6 +277,7 @@ Metadata:
           - MessageRetentionPeriodSeconds
           - MaximumMessageSizeBytes
           - SqsKmsKey
+          - ErrorQueueAdditionalPolicyStatements
       - Label:
           default: AWS Step Function to stop databases
         Parameters:
@@ -307,6 +318,8 @@ Metadata:
         default: Maximum bytes in a message
       SqsKmsKey:
         default: KMS encryption key
+      ErrorQueueAdditionalPolicyStatements:
+        default: Additional error queue policy statements
       StepFnTaskTimeoutSeconds:
         default: Maximum seconds for an AWS request
       StepFnWaitSeconds:
@@ -602,42 +615,59 @@ Resources:
     Type: AWS::SQS::QueuePolicy
     Properties:
       Queues: [ !Ref ErrorQueue ]
-      PolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Sid: RequireTls
-            Effect: Deny
-            Principal: "*"
-            Action: sqs:*
-            Resource: "*"
-            Condition:
-              Bool: { aws:SecureTransport: "false" }
-          - Effect: Allow
-            Principal: "*"
-            Action: sqs:GetQueueAttributes
-            Resource: "*"
-          - Sid:
-              Fn::If:
-                - SqsKmsKeyCustom
-                - SourceEventRulesNoteKeyPolicyNeedsEventBridgeSqsKmsEncrypt
-                - SourceEventRules
-            Effect: Allow
-            Principal: { Service: events.amazonaws.com }
-            Action: sqs:SendMessage
-            Resource: "*"
-            Condition:
-              ArnEquals:
-                "aws:SourceArn":
-                  - !GetAtt DbForcedStartToStepFnRule.Arn
-          - Sid: ExclusiveSources
-            Effect: Deny
-            Principal: "*"
-            Action: sqs:SendMessage
-            Resource: "*"
-            Condition:
-              ArnNotEquals:
-                "aws:SourceArn":
-                  - !GetAtt DbForcedStartToStepFnRule.Arn
+      # Using YAML makes a policy easier to read, but we need to support
+      # insertion of custom JSON from ErrorQueueAdditionalPolicyStatements .
+      PolicyDocument: !Sub
+        - >-
+          {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Sid": "RequireTls",
+                "Effect": "Deny",
+                "Principal": "*",
+                "Action": "sqs:*",
+                "Resource": "*",
+                "Condition": {
+                  "Bool": {
+                    "aws:SecureTransport": "false"
+                  }
+                }
+              },
+              {
+                "Sid": "${SourceEventRulesSid}",
+                "Effect": "Allow",
+                "Principal": {
+                  "Service": "events.amazonaws.com"
+                },
+                "Action": "sqs:SendMessage",
+                "Resource": "*",
+                "Condition": {
+                  "ArnEquals": {
+                    "aws:SourceArn": "${DbForcedStartToStepFnRule.Arn}"
+                  }
+                }
+              },
+              {
+                "Sid": "ExclusiveSources",
+                "Effect": "Deny",
+                "Principal": "*",
+                "Action": "sqs:SendMessage",
+                "Resource": "*",
+                "Condition": {
+                  "ArnNotEquals": {
+                    "aws:SourceArn": "${DbForcedStartToStepFnRule.Arn}"
+                  }
+                }
+              }
+              ${ErrorQueueAdditionalPolicyStatements}
+            ]
+          }
+        -
+          SourceEventRulesSid: !If
+            - SqsKmsKeyCustom
+            - SourceEventRulesNoteKeyPolicyNeedsEventBridgeSqsKmsEncrypt
+            - SourceEventRules
 
   # https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_Events.Messages.html#USER_Events.Messages.cluster
   # - RDS-EVENT-0153 "DB cluster is being started due to it exceeding the

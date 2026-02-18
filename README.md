@@ -4,17 +4,25 @@ _Reliably keep AWS databases stopped when not needed_
 
 ## Purpose
 
-This is the low-code, Step&nbsp;Function-based replacement for my original
-Lambda-based tool for stopping RDS and Aurora databases that AWS has
-automatically started after the 7-day maximum stop period. It uses the same
-reliable process, free of
+AWS automatically starts RDS and Aurora databases after they've been stopped
+for 7&nbsp;days. This low-code, Step&nbsp;Function-based replacement for my
+original Lambda-based tool re-stops them. It uses the same reliable process,
+free of
 [race conditions](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora#perspective)
-that might leave databases running without warning.
+that might leave databases running without warning you.
 
-Step-Stay-Stopped resolves Cloud Efficiency Hub reports
-[CER-0293: Automatic Restart of Stopped Aurora Clusters Causing Unintended Compute Charges](https://hub.pointfive.co/inefficiencies/automatic-restart-of-stopped-aurora-clusters-causing-unintended-compute-charges)
-and
-[CER-0097: No Lifecycle Management for Temporarily Stopped RDS Instances](https://hub.pointfive.co/inefficiencies/no-lifecycle-management-for-temporarily-stopped-rds-instances).
+You do not have to opt-out or opt-in by tagging databases. Running databases
+keep running. Only databases stopped for 7&nbsp;days trigger this tool, via:
+[RDS-EVENT-0154](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Events.Messages.html#RDS-EVENT-0154)
+(RDS database instance)
+or
+[RDS-EVENT-0153](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_Events.Messages.html#RDS-EVENT-0153)
+(Aurora database cluster).
+
+Step-Stay-Stopped resolves two Cloud Efficiency Hub reports:
+
+- [CER-0293: Automatic Restart of Stopped Aurora Clusters Causing Unintended Compute Charges](https://hub.pointfive.co/inefficiencies/automatic-restart-of-stopped-aurora-clusters-causing-unintended-compute-charges)
+- [CER-0097: No Lifecycle Management for Temporarily Stopped RDS Instances](https://hub.pointfive.co/inefficiencies/no-lifecycle-management-for-temporarily-stopped-rds-instances)
 
 Jump to:
 [Get Started](#get-started)
@@ -43,16 +51,16 @@ charge for database instance hours while an
 [RDS database instance is stopped](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_StopInstance.html#USER_StopInstance.Benefits)
 or an
 [Aurora database cluster is stopped](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-cluster-stop-start.html#aurora-cluster-start-stop-overview).
-(Other charges, such as for storage and snapshots, continue.)
+Other charges, such as for storage and snapshots, continue.
 
 ## Get Started
 
  1. Log in to the AWS Console as an administrator. Choose an AWS account and a
     region where you have an RDS or Aurora database that is normally stopped,
-    or that you can stop now and leave stopped for 8&nbsp;days.
+    or a database that you won't need for 8&nbsp;days (stop the database now).
 
- 2. If you used Stay-Stopped, the original, AWS Lambda-based variant, delete
-    any `StayStoppedRdsAurora` CloudFormation _stacks_, or delete the
+ 2. If you used Stay-Stopped, the original, AWS Lambda-based tool, delete any
+    `StayStoppedRdsAurora` CloudFormation _stacks_, or delete the
     `StayStoppedRdsAurora` CloudFormation _StackSet_.
 
  3. Install Step-Stay-Stopped using CloudFormation or Terraform.
@@ -90,11 +98,11 @@ or an
 
  4. Wait 8&nbsp;days, then check that your
     [RDS or Aurora database](https://console.aws.amazon.com/rds/home#databases:)
-    is stopped. After clicking the RDS database instance name or the Aurora
-    database cluster name, open the "Logs & events" tab and scroll to "Recent
-    events". At the right, click to change "Last 1 day" to "Last 2 weeks". The
-    "System notes" column should include the following entries, listed here
-    from newest to oldest. There might be other entries in between.
+    is still stopped. After clicking the RDS database instance name or the
+    Aurora database cluster name, open the "Logs & events" tab and scroll to
+    "Recent events". At the right, click to change "Last 1 day" to "Last 2
+    weeks". The "System notes" column should include the following entries,
+    listed here from newest to oldest. There might be other entries in between.
 
     |RDS|Aurora|
     |:---|:---|
@@ -108,16 +116,16 @@ or an
 
 ## Multi-Account, Multi-Region
 
-For reliability, Step-Stay-Stopped works independently in each (region, AWS
-account) pair. To deploy in multiple regions and/or multiple AWS accounts,
+For reliability, Step-Stay-Stopped works independently in each region, in each
+AWS account. To deploy in multiple regions and/or multiple AWS accounts,
 
  1. Delete any standalone `StepStayStoppedRdsAurora` CloudFormation _stacks_ in
     your target regions and/or AWS accounts (including any instances of the
     basic `//terraform` module; you will be installing one instance of the
     `//terraform-multi` module).
 
-    - If you used Stay-Stopped, the original, AWS Lambda-based variant, delete
-      any `StayStoppedRdsAurora` CloudFormation _stacks_, or delete the
+    - If you used Stay-Stopped, the original, AWS Lambda-based tool, delete any
+      `StayStoppedRdsAurora` CloudFormation _stacks_, or delete the
       `StayStoppedRdsAurora` CloudFormation _StackSet_.
 
  2. Complete the prerequisites for creating a _StackSet_ with
@@ -256,7 +264,8 @@ it permission to:
   stacks
 - Set and get CloudFormation stack policies
 - Pass `StepStayStoppedRdsAuroraPrereq-DeploymentRole-*` to CloudFormation
-- List, describe, and get tags for, all `data` sources. For a list, run:
+- List, describe, and get tags for, all `data` sources. To see the data
+  sources, run:
 
   ```shell
   grep 'data "' terraform*/*.tf | cut --delimiter=' ' --fields='1,2'
@@ -427,11 +436,11 @@ change these parameters:
 |Parameter|Normal|Test|
 |:---|:---:|:---:|
 |`Test`|`false`|`true`|
-|`LogLevel`|`ERROR`|`ALL`|
 |`StepFnWaitSeconds`|`540`|`60`|
 |&rarr; _Equivalent in minutes_|_9 minutes_|_1 minute_|
 |`StepFnTimeoutSeconds`|`86400`|`1800`|
 |&rarr; _Equivalent in hours_|_24 hours_|_&frac12; hour_|
+|`LogLevel`|`ERROR`|`ALL`|
 
 **&#9888; Exit test mode as quickly as possible**, given the operational and
 security risks explained below. If your test database is ready, several minutes
@@ -440,8 +449,8 @@ module.
 
 ### Test by Manually Starting a Database
 
-In test mode, Step-Stay-Stopped responds to user-initiated, non-forced database
-starts, too:
+In test mode, Step-Stay-Stopped also responds to user-initiated, non-forced
+database starts:
 [RDS-EVENT-0088 (RDS database instance)](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Events.Messages.html#RDS-EVENT-0088)
 and
 [RDS-EVENT-0151](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_Events.Messages.html#USER_Events.Messages.cluster)

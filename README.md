@@ -11,25 +11,25 @@ reliable process, free of
 [race conditions](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora#perspective)
 that might leave databases running without warning you.
 
-Step-Stay-Stopped resolves two Cloud Efficiency Hub reports:
-
-- [CER-0293: Automatic Restart of Stopped Aurora Clusters Causing Unintended Compute Charges](https://hub.pointfive.co/inefficiencies/automatic-restart-of-stopped-aurora-clusters-causing-unintended-compute-charges)
-- [CER-0097: No Lifecycle Management for Temporarily Stopped RDS Instances](https://hub.pointfive.co/inefficiencies/no-lifecycle-management-for-temporarily-stopped-rds-instances)
-
-You do not have to opt-out or opt-in by tagging databases. Running databases
-keep running. Only databases stopped for 7&nbsp;days trigger this tool, via:
-[RDS-EVENT-0154](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Events.Messages.html#RDS-EVENT-0154)
-(RDS database instance)
-or
-[RDS-EVENT-0153](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_Events.Messages.html#RDS-EVENT-0153)
-(Aurora database cluster).
-
 Jump to:
 [Get Started](#get-started)
 &bull;
 [Multi-Account, Multi-Region](#multi-account-multi-region)
 &bull;
 [Security](#security)
+
+You do not have to opt-out or opt-in by tagging databases. Running databases
+keep running. Only databases stopped for 7&nbsp;days trigger this tool, via
+[RDS-EVENT-0154](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Events.Messages.html#RDS-EVENT-0154)
+(RDS database instance)
+or
+[RDS-EVENT-0153](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_Events.Messages.html#RDS-EVENT-0153)
+(Aurora database cluster).
+
+Step-Stay-Stopped resolves two Cloud Efficiency Hub reports:
+
+- [CER-0293: Automatic Restart of Stopped Aurora Clusters Causing Unintended Compute Charges](https://hub.pointfive.co/inefficiencies/automatic-restart-of-stopped-aurora-clusters-causing-unintended-compute-charges)
+- [CER-0097: No Lifecycle Management for Temporarily Stopped RDS Instances](https://hub.pointfive.co/inefficiencies/no-lifecycle-management-for-temporarily-stopped-rds-instances)
 
 ### Diagram
 

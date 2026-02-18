@@ -58,6 +58,8 @@ variable "stay_stopped_rds_stackset_params" {
     SqsKmsKey                       = optional(string, "")
     CloudWatchLogsKmsKey            = optional(string, "")
 
+    ErrorQueueAdditionalPolicyStatements = optional(string, "")
+
     StepFnTaskTimeoutSeconds = optional(number, 30)
     StepFnWaitSeconds        = optional(number, 540)
     StepFnTimeoutSeconds     = optional(number, 86400)

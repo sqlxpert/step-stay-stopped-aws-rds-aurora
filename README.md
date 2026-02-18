@@ -11,6 +11,11 @@ reliable process, free of
 [race conditions](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora#perspective)
 that might leave databases running without warning.
 
+Step-Stay-Stopped resolves Cloud Efficiency Hub reports
+[CER-0293: Automatic Restart of Stopped Aurora Clusters Causing Unintended Compute Charges](https://hub.pointfive.co/inefficiencies/automatic-restart-of-stopped-aurora-clusters-causing-unintended-compute-charges)
+and
+[CER-0097: No Lifecycle Management for Temporarily Stopped RDS Instances](https://hub.pointfive.co/inefficiencies/no-lifecycle-management-for-temporarily-stopped-rds-instances).
+
 Jump to:
 [Get Started](#get-started)
 &bull;
@@ -320,7 +325,7 @@ entirely at your own risk. You are encouraged to review the source code.
   stale events, if any.
 
 - Readable Identity and Access Management policies, formatted as CloudFormation
-  YAML rather than JSON (where permitted), and broken down into discrete
+  YAML rather than JSON (where possible), and broken down into discrete
   statements by service, resource or principal.
 
 ### Your Security Steps

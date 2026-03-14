@@ -91,7 +91,7 @@ Other charges, such as for storage and snapshots, continue.
 
       ```terraform
       module "stay_stopped_rds" {
-        source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform?ref=v2.3.0"
+        source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform?ref=v2.3.1"
         # Reference a specific version from github.com/sqlxpert/step-stay-stopped-aws-rds-aurora/releases
       }
       ```
@@ -157,21 +157,18 @@ AWS account. To deploy in multiple regions and/or multiple AWS accounts,
 
       ```terraform
       module "stay_stopped_rds_stackset" {
-        source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform-multi?ref=v2.3.0"
+        source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform-multi?ref=v2.3.1"
         # Reference a specific version from github.com/sqlxpert/step-stay-stopped-aws-rds-aurora/releases
 
-        stay_stopped_rds_stackset_regions = ["us-east-1", "us-west-2", ]
-        stay_stopped_rds_stackset_organizational_unit_names = [
-          "MyOrganizationalUnit",
+        stay_stopped_rds_stackset_regions = ["us-east-1", "us-west-2",]
+        stay_stopped_rds_stackset_organizational_unit_ids = [
+          "ou-0123-abcdefg",
         ]
       }
       ```
 
       Test mode is always disabled in this configuration. This is a safeguard
       against unintended use in production.
-
-      &#9888; **In Terraform, specify the name(s) of the target organization
-      unit(s)**, not the `ou-` ID(s).
 
 ## Installation with Terraform
 
@@ -194,10 +191,10 @@ resemble:
 
 ```terraform
 module "stay_stopped_rds" {
-  source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform?ref=v2.3.0"
+  source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform?ref=v2.3.1"
   # Reference a specific version from github.com/sqlxpert/step-stay-stopped-aws-rds-aurora/releases
 
-  for_each                = toset(["us-east-1", "us-west-2", ])
+  for_each                = toset(["us-east-1", "us-west-2",])
   stay_stopped_rds_region = each.key
 }
 ```

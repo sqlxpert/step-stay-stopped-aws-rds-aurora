@@ -229,7 +229,7 @@ First, create the `StepStayStoppedRdsAuroraPrereq` stack from
 
 Under "Additional settings" &rarr; "Stack policy - optional", you can "Upload a
 file" and select a locally-saved copy of
-[cloudformation/step_stay_stopped_aws_rds_aurora_prereq_policy.json.json](/../../blob/v2.4.0/cloudformation/step_stay_stopped_aws_rds_aurora_prereq_policy.json?raw=true)&nbsp;.
+[cloudformation/step_stay_stopped_aws_rds_aurora_prereq_policy.json](/../../blob/v2.4.0/cloudformation/step_stay_stopped_aws_rds_aurora_prereq_policy.json?raw=true)&nbsp;.
 The stack policy prevents inadvertent replacement or deletion of the deployment
 role during stack updates, but it cannot prevent deletion of the entire
 `StepStayStoppedRdsAuroraPrereq` stack.

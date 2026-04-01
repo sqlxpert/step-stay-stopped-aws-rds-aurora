@@ -243,10 +243,6 @@ Resources:
                   - kms:GenerateDataKey
                   - kms:Decrypt
                 Resource: "*"
-                Condition:
-                  StringLike:
-                    "kms:EncryptionContext:aws:states:stateMachineArn":
-                      - !Sub "arn:${AWS::Partition}:states:*:${AWS::AccountId}:stateMachine:${StackNameLike}-*"
                 # Security: Allows use of a custom KMS key housed in the same
                 # AWS account as a Step-Stay-Stopped CloudFormation stack,
                 # without specific permission in the key policy. To prevent
@@ -255,6 +251,10 @@ Resources:
                 # Permissions" statement from the key policy.
                 # https://docs.aws.amazon.com/step-functions/latest/dg/encryption-at-rest.html#create-state-machine
                 # https://docs.aws.amazon.com/kms/latest/developerguide/key-policy-default.html#key-policy-default-allow-root-enable-iam
+                Condition:
+                  StringLike:
+                    "kms:EncryptionContext:aws:states:stateMachineArn":
+                      - !Sub "arn:${AWS::Partition}:states:*:${AWS::AccountId}:stateMachine:${StackNameLike}-*"
               - Effect: Allow
                 Action:
                   - kms:ListKeys

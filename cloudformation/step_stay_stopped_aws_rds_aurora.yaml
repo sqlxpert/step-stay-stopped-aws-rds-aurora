@@ -418,7 +418,7 @@ Resources:
             Condition:
               ArnEquals:
                 "aws:SourceArn":
-                  !Sub "arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${AWS::StackName}-StepFn"
+                  !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${AWS::StackName}-StepFn"
       ManagedPolicyArns: !If
         - StepFnRoleAttachLocalPolicyNameBlank
         - !Ref AWS::NoValue
@@ -544,9 +544,9 @@ Resources:
                   Condition:
                     StringEquals:
                       "kms:EncryptionContext:SourceArn":
-                        !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*"
-                        # No need for StringLike! Per CloudTrail, the literal
-                        # EncryptionContext ends in :*
+                        !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:*"
+                        # No need for ...Like operator! Per CloudTrail, the
+                        # literal EncryptionContext ends in :*
 
         # https://docs.aws.amazon.com/step-functions/latest/dg/encryption-at-rest.html#create-state-machine
         - !If
@@ -564,7 +564,7 @@ Resources:
                   Condition:
                     StringEquals:
                       "kms:EncryptionContext:aws:states:stateMachineArn":
-                        !Sub "arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${AWS::StackName}-StepFn"
+                        !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${AWS::StackName}-StepFn"
                         # KMS and Step Functions documentation recommends
                         # String operators.
                         # https://docs.aws.amazon.com/kms/latest/developerguide/conditions-kms.html#conditions-kms-encryption-context
@@ -601,7 +601,7 @@ Resources:
                 "aws:SourceAccount": "${AWS::AccountId}"
               },
               "ArnLike": {
-                "aws:SourceArn": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*"
+                "aws:SourceArn": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:*"
               }
             }
           }]
@@ -862,7 +862,7 @@ Resources:
               },
               "StopDBCluster": {
                 "Type": "Task",
-                "Resource": "arn:aws:states:::aws-sdk:rds:stopDBCluster",
+                "Resource": "arn:${AWS::Partition}:states:::aws-sdk:rds:stopDBCluster",
                 "Arguments": "{% {'DbClusterIdentifier': $states.input.SourceIdentifier} %}",
                 "TimeoutSeconds": "{% $Constant.StepFnTaskTimeoutSeconds %}",
                 "Catch": [
@@ -887,7 +887,7 @@ Resources:
               },
               "StopDBInstance": {
                 "Type": "Task",
-                "Resource": "arn:aws:states:::aws-sdk:rds:stopDBInstance",
+                "Resource": "arn:${AWS::Partition}:states:::aws-sdk:rds:stopDBInstance",
                 "Arguments": "{% {'DbInstanceIdentifier': $states.input.SourceIdentifier} %}",
                 "TimeoutSeconds": "{% $Constant.StepFnTaskTimeoutSeconds %}",
                 "Catch": [
@@ -919,7 +919,7 @@ Resources:
               },
               "DescribeDBInstances": {
                 "Type": "Task",
-                "Resource": "arn:aws:states:::aws-sdk:rds:describeDBInstances",
+                "Resource": "arn:${AWS::Partition}:states:::aws-sdk:rds:describeDBInstances",
                 "Arguments": "{% {'DbInstanceIdentifier': $states.input.SourceIdentifier} %}",
                 "TimeoutSeconds": "{% $Constant.StepFnTaskTimeoutSeconds %}",
                 "Catch": [

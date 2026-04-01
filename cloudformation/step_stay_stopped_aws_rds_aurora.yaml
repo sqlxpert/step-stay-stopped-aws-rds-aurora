@@ -375,7 +375,7 @@ Resources:
         Version: "2012-10-17"
         Statement:
           - Effect: Allow
-            Principal: { Service: events.amazonaws.com }
+            Principal: { Service: !Sub "events.${AWS::URLSuffix}" }
             Action: sts:AssumeRole
       Policies:
 
@@ -402,7 +402,7 @@ Resources:
                   Condition:
                     StringEquals:
                       "kms:ViaService":
-                        !Sub "sqs.${AWS::Region}.amazonaws.com"
+                        !Sub "sqs.${AWS::Region}.${AWS::URLSuffix}"
           - !Ref AWS::NoValue
 
   StepFnRole:
@@ -413,7 +413,7 @@ Resources:
         Version: "2012-10-17"
         Statement:
           - Effect: Allow
-            Principal: { Service: states.amazonaws.com }
+            Principal: { Service: !Sub "states.${AWS::URLSuffix}" }
             Action: sts:AssumeRole
             Condition:
               ArnEquals:
@@ -588,7 +588,7 @@ Resources:
           "Version": "2012-10-17",
           "Statement": [{
             "Effect": "Allow",
-            "Principal": { "Service": "delivery.logs.amazonaws.com" },
+            "Principal": { "Service": "delivery.logs.${AWS::URLSuffix}" },
             "Action": [
               "logs:CreateLogStream",
               "logs:PutLogEvents"
@@ -636,7 +636,7 @@ Resources:
                 "Sid": "${SourceEventRulesSid}",
                 "Effect": "Allow",
                 "Principal": {
-                  "Service": "events.amazonaws.com"
+                  "Service": "events.${AWS::URLSuffix}"
                 },
                 "Action": "sqs:SendMessage",
                 "Resource": "*",
@@ -817,6 +817,15 @@ Resources:
       TracingConfiguration: { Enabled: false }
       RoleArn: !GetAtt StepFnRole.Arn
       StateMachineType: STANDARD
+
+      # The DefinitionSubstitutions property has potential issues for
+      # non-string values, does not handle CloudFormation pseudo parameters,
+      # and is not in the underlying Step Functions API, so it offers no
+      # advantages over CloudFormation's own Fn::Sub .
+      # https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-stepfunctions-statemachine.html#cfn-stepfunctions-statemachine-definitionsubstitutions
+      # https://github.com/aws-cloudformation/aws-cloudformation-resource-providers-stepfunctions/issues/14
+      # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/pseudo-parameter-reference.html#available-pseudo-parameters
+      # https://docs.aws.amazon.com/step-functions/latest/apireference/API_CreateStateMachine.html#API_CreateStateMachine_RequestSyntax
       DefinitionString: !Sub
         - |-
           {

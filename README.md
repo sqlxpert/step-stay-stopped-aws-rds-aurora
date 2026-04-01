@@ -140,10 +140,10 @@ AWS account. To deploy in multiple regions and/or multiple AWS accounts,
 
     - **CloudFormation**<br/>_Easy_ &check;
 
-      [Create a CloudFormation StackSet](/../../blob/v2.4.0/cloudformation/step_stay_stopped_aws_rds_aurora.yaml?raw=true).
+      [Create a CloudFormation StackSet](/cloudformation/step_stay_stopped_aws_rds_aurora.yaml?raw=true).
       Select "Upload a template file", then select "Choose file" and upload a
       locally-saved copy of
-      [cloudformation/step_stay_stopped_aws_rds_aurora.yaml](/cloudformation/step_stay_stopped_aws_rds_aurora.yaml?raw=true)
+      [cloudformation/step_stay_stopped_aws_rds_aurora.yaml](/../../blob/v2.4.0/cloudformation/step_stay_stopped_aws_rds_aurora.yaml?raw=true)
       [right-click to save as...]. On the next page, set:
 
       - StackSet name: `StepStayStoppedRdsAurora`

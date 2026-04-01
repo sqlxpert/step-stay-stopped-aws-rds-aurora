@@ -9,7 +9,7 @@ for 7&nbsp;days. This Step&nbsp;Function re-stops them automatically. It uses
 the same reliable process as my original, Lambda-based solution, whereas most
 alternatives have
 [race conditions](https://github.com/sqlxpert/stay-stopped-aws-rds-aurora#perspective)
-that can leave databases running without warning you.
+that can leave databases running with no warning.
 
 You do not have to opt-out or opt-in by tagging databases. Running databases
 keep running. Only databases stopped for 7&nbsp;days trigger this tool, via

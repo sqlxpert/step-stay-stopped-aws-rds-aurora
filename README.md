@@ -71,7 +71,7 @@ Other charges, such as for storage and snapshots, continue.
 
     - **CloudFormation**<br/>_Easy_ &check;
 
-      [Create a CloudFormation stack](https://console.aws.amazon.com/cloudformation/home?#/stacks/create).
+      [Create a CloudFormation stack](https://console.aws.amazon.com/cloudformation/home#/stacks/create).
 
       Select "Upload a template file", then select "Choose file" and navigate
       to a locally-saved copy of
@@ -225,17 +225,17 @@ stack. (This is done for you if you use Terraform at Step&nbsp;3 of
 [Get Started](#get-started).)
 
 First, create the `StepStayStoppedRdsAuroraPrereq` stack from
-[cloudformation/step_stay_stopped_aws_rds_aurora_prereq.yaml](/cloudformation/step_stay_stopped_aws_rds_aurora_prereq.yaml?raw=true)&nbsp;.
+[cloudformation/step_stay_stopped_aws_rds_aurora_prereq.yaml](/../../blob/v2.4.0/cloudformation/step_stay_stopped_aws_rds_aurora_prereq.yaml?raw=true)&nbsp;.
 
 Under "Additional settings" &rarr; "Stack policy - optional", you can "Upload a
 file" and select a locally-saved copy of
-[cloudformation/step_stay_stopped_aws_rds_aurora_prereq_policy.json.json](/cloudformation/step_stay_stopped_aws_rds_aurora_prereq_policy.json?raw=true)&nbsp;.
+[cloudformation/step_stay_stopped_aws_rds_aurora_prereq_policy.json.json](/../../blob/v2.4.0/cloudformation/step_stay_stopped_aws_rds_aurora_prereq_policy.json?raw=true)&nbsp;.
 The stack policy prevents inadvertent replacement or deletion of the deployment
 role during stack updates, but it cannot prevent deletion of the entire
 `StepStayStoppedRdsAuroraPrereq` stack.
 
 Next, when you create the `StepStayStoppedRdsAurora` stack from
-[cloudformation/step_stay_stopped_aws_rds_aurora.yaml](/cloudformation/step_stay_stopped_aws_rds_aurora.yaml?raw=true)&nbsp;,
+[cloudformation/step_stay_stopped_aws_rds_aurora.yaml](/../../blob/v2.4.0/cloudformation/step_stay_stopped_aws_rds_aurora.yaml?raw=true)&nbsp;,
 set "Permissions - optional" &rarr; "IAM role - optional" to
 `StepStayStoppedRdsAuroraPrereq-DeploymentRole`&nbsp;. If your own privileges
 are limited, you might need permission to pass the deployment role to

@@ -196,6 +196,7 @@ resemble:
 module "stay_stopped_rds" {
   source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform?ref=v2.4.0"
   # Reference a specific version from github.com/sqlxpert/step-stay-stopped-aws-rds-aurora/releases
+  # Check that the release is immutable!
 
   for_each                = toset(["us-east-1", "us-west-2",])
   stay_stopped_rds_region = each.key

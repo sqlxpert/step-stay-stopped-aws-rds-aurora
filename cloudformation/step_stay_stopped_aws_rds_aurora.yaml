@@ -490,7 +490,7 @@ Resources:
         # JSON, because CloudFormation requires literal string keys.
         # !Sub "aws:ResourceTag/${TagKey}": "*"
         # would give an "Unhashable type" error.
-        # Empty "Condition": {} is OK.
+        # Empty "Condition": {"Null": {}} is valid and has no effect.
         - PolicyName: RdsWrite
           PolicyDocument: !Sub
             - >-
@@ -507,7 +507,9 @@ Resources:
                     "arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:cluster:*"
                   ],
                   "Condition": {
+                    "Null": {
               ${TagConditions}
+                    }
                   }
                 }]
               }
@@ -517,16 +519,12 @@ Resources:
                 - - !If
                     - ExcludeTagKeySet
                     - !Sub |-
-                        "StringNotLike": {
-                          "aws:ResourceTag/${ExcludeTagKey}": "*"
-                        }
+                        "aws:ResourceTag/${ExcludeTagKey}": "true"
                     - !Ref AWS::NoValue
                   - !If
                     - IncludeTagKeySet
                     - !Sub |-
-                        "StringLike": {
-                          "aws:ResourceTag/${IncludeTagKey}": "*"
-                        }
+                        "aws:ResourceTag/${IncludeTagKey}": "false"
                     - !Ref AWS::NoValue
 
         # https://docs.aws.amazon.com/step-functions/latest/dg/encryption-at-rest.html#encrypt-logs

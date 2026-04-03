@@ -18,8 +18,8 @@ resource "aws_organizations_policy" "scp_rds_protect_stay_stopped_tags" {
           "Effect": "Deny",
           "Action": "rds:RemoveTagsFromResource",
           "Resource": [
-            "${arn_build(local.partition, "rds", "*", "db", "*")}",
-            "${arn_build(local.partition, "rds", "*", "cluster", "*")}"
+            "${provider::arn_build(local.partition, "rds", "*", "db", "*")}",
+            "${provider::arn_build(local.partition, "rds", "*", "cluster", "*")}"
           ],
           "Condition": {
             "ForAnyValue:StringEquals": {
@@ -32,8 +32,8 @@ resource "aws_organizations_policy" "scp_rds_protect_stay_stopped_tags" {
           "Effect": "Deny",
           "Action": "rds:AddTagsToResource",
           "Resource": [
-            "${arn_build(local.partition, "rds", "*", "db", "*")}",
-            "${arn_build(local.partition, "rds", "*", "cluster", "*")}"
+            "${provider::arn_build(local.partition, "rds", "*", "db", "*")}",
+            "${provider::arn_build(local.partition, "rds", "*", "cluster", "*")}"
           ],
           "Condition": {
             "ForAnyValue:StringEquals": {

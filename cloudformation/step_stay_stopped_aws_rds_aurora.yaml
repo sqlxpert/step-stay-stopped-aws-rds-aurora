@@ -56,11 +56,12 @@ Parameters:
     Description: >-
       An RDS database instance or Aurora database cluster with this tag will
       not be stopped.
-      Specify only the tag key; tag values are ignored.
+      Specify only the tag key; tag values are irrelevant.
+      The default is "StayStopped-Exclude".
       If ExcludeTagKey and IncludeTagKey are both blank, the Step Function role
       has permission to stop any database (though the Step Function is only
       triggered for databases that have already been stopped for 7 days).
-      The default is "StayStopped-Exclude".
+      If both are set, they must be different.
       For tag key rules, see
       https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Tagging.html#Overview.Tagging.Structure
     Default: "StayStopped-Exclude"
@@ -71,6 +72,7 @@ Parameters:
       An RDS database instance or Aurora database cluster without this tag will
       not be stopped.
       By default, this is blank and no database tag is required.
+      If you wish to use this feature, "StayStopped-Include" is recommended.
       If a database has both the ExcludeTagKey and the IncludeTagKey, it will
       not be stopped; exclusion wins.
       See ExcludeTagKey for other important details.
@@ -338,6 +340,17 @@ Metadata:
         default: Level of detail
       CloudWatchLogsKmsKey:
         default: KMS encryption key
+
+Rules:
+
+  IncludeTagKeyExcludeTagKeyDiffer:
+    Assertions:
+      - AssertDescription: >-
+          If both are set, ExcludeTagKey and IncludeTagKey must be different
+        Assert: !Or
+          - !Equals [ !Ref ExcludeTagKey, "" ]
+          - !Equals [ !Ref IncludeTagKey, "" ]
+          - !Not [ !Equals [ !Ref ExcludeTagKey, !Ref IncludeTagKey ] ]
 
 Conditions:
 

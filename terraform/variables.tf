@@ -54,7 +54,7 @@ variable "stay_stopped_rds_params" {
 
 variable "stay_stopped_rds_tags" {
   type        = map(string)
-  description = "Tag map for CloudFormation stacks. Keys, all optional, are tag keys. Values are tag values. This takes precedence over the Terraform AWS provider's default_tags and over tags attributes defined by the module. To remove tags defined by the module, set the terraform and source tags to null . Warnings: Each AWS service may have different rules for tag key and tag value lengths, characters, and disallowed tag key or tag value contents. CloudFormation propagates stack tags to stack resources. CloudFormation requires stack tag values to be at least 1 character long; empty tag values are not allowed."
+  description = "Tag map for CloudFormation stacks. Keys, all optional, are tag keys. Values are tag values. This takes precedence over the Terraform AWS provider's default_tags and over tags attributes defined by the module. To remove tags defined by the module, set the terraform , source and rights tags to null . Warnings: Each AWS service may have different rules for tag key and tag value lengths, characters, and disallowed tag key or tag value contents. CloudFormation propagates stack tags to stack resources. CloudFormation requires stack tag values to be at least 1 character long; empty tag values are not allowed."
 
   default = {}
 

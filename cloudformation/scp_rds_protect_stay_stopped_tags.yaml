@@ -2,7 +2,7 @@
 AWSTemplateFormatVersion: "2010-09-09"
 
 Description: |-
-  Service control policy protecting database stop include/exclude tags
+  Service control policy protecting database stop exclude/include tags
   github.com/sqlxpert/step-stay-stopped-aws-rds-aurora  GPLv3  Copyright Paul Marcelin
 
 Parameters:
@@ -165,11 +165,11 @@ Conditions:
 
 Resources:
 
-  ScpRdsProtectStepStayStoppedTags:
+  ScpRdsProtectStayStoppedTags:
     Type: AWS::Organizations::Policy
     Properties:
       Type: SERVICE_CONTROL_POLICY
-      Name: !Sub "RdsDbProtectTags-${AWS::StackName}"
+      Name: !Sub "RdsProtectTags-${AWS::StackName}"
       Tags:
         - Key: StackName  # No automatic CloudFormation tags, as of 2026-03
           Value: !Ref AWS::StackName
@@ -178,9 +178,8 @@ Resources:
         - Key: Rights
           Value: "GPLv3. Copyright Paul Marcelin."
       Description: !Sub >-
-        RDS/Aurora database instance or database cluster: Matching IAM
-        principals cannot remove the '${ExcludeTagKey}' tag or add the
-        '${IncludeTagKey}' tag.
+        RDS/Aurora database instance or database cluster tags: Matching IAM
+        principals cannot remove '${ExcludeTagKey}' or add '${IncludeTagKey}'.
         GPLv3, Copyright Paul Marcelin. github.com/sqlxpert
       TargetIds: !If [ EnableScpTrue, !Ref ScpTargetIds, !Ref AWS::NoValue ]
       Content: !Sub >-
@@ -220,12 +219,12 @@ Resources:
 
 Outputs:
 
-  ScpRdsDbProtectStepStayStoppedTagsArn:
+  ScpRdsProtectStayStoppedTagsArn:
     Description: >-
       ARN of service control policy protecting RDS/Aurora database stop
-      include/exclude tags
-    Value: !GetAtt ScpRdsProtectStepStayStoppedTags.Arn
-  ScpRdsProtectStepStayStoppedTagsId:
+      exclude/include tags
+    Value: !GetAtt ScpRdsProtectStayStoppedTags.Arn
+  ScpRdsProtectStayStoppedTagsId:
     Description: >-
       Physical identifier of service control policy
-    Value: !GetAtt ScpRdsProtectStepStayStoppedTags.Id
+    Value: !GetAtt ScpRdsProtectStayStoppedTags.Id

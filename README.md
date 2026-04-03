@@ -379,9 +379,9 @@ entirely at your own risk. You are encouraged to review the source code.
   _AWS_ is starting after they've been stopped for 7&nbsp;days, the Step
   Function could stop _any_ database if invoked directly, with a contrived
   event as input. You might choose not to deploy this tool in AWS accounts used
-  for production, or you might add a custom IAM policy to the function role,
-  denying authority to stop certain production databases (`AttachLocalPolicy`
-  in CloudFormation).
+  for production, or you might add a custom IAM policy to deny the function
+  role permission to stop certain databases. See the `AttachLocalPolicy`
+  parameter.
 
   - Tagging an RDS database instance or an Aurora database cluster with
     `StayStopped-Exclude` prevents the Step Function role from being misused to
@@ -484,7 +484,7 @@ Check the:
       `Rds.InvalidDbClusterStateException` errors, with no other proximate
       errors, are expected and can be ignored.
     - Log entries are JSON objects.
-    - For more data, change the `LogLevel` in CloudFormation.
+    - For more data, change the `LogLevel` parameter.
 
  2. "Executions" data for the `StepStayStoppedRdsAurora-StepFn`
     [Step Function](https://console.aws.amazon.com/states/home#/statemachines)

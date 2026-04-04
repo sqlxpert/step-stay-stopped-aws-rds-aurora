@@ -26,10 +26,10 @@ locals {
   stay_stopped_rds_tags = merge(
     {
       terraform = "1"
+      source    = "github.com/sqlxpert/step-stay-stopped-aws-rds-aurora/blob/main/${local.module_directory}"
+      rights    = "GPLv3. Copyright Paul Marcelin."
       # CloudFormation stack tag values must be at least 1 character long!
       # https://docs.aws.amazon.com/AWSCloudFormation/latest/APIReference/API_Tag.html#API_Tag_Contents
-
-      source = "https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora/blob/main/${local.module_directory}"
     },
     var.stay_stopped_rds_tags,
   )

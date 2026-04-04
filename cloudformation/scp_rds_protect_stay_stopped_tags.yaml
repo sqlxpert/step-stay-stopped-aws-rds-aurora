@@ -1,0 +1,230 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: |-
+  Service control policy protecting database stop exclude/include tags
+  github.com/sqlxpert/step-stay-stopped-aws-rds-aurora  GPLv3  Copyright Paul Marcelin
+
+Parameters:
+
+  PlaceholderSuggestedStackName:
+    Type: String
+    Description: >-
+      The stack name will be appended to the service control policy name. If
+      you have also installed the Terraform module equivalent to this
+      CloudFormation template, the stack name must differ from
+      scp_name_suffix for all instances of the Terraform module.
+    Default: "StepStayStoppedRdsAuroraScp"
+
+  PlaceholderHelp:
+    Type: String
+    Default: "github.com/sqlxpert/step-stay-stopped-aws-rds-aurora"
+
+  EnableScp:
+    Type: String
+    Description: >-
+      Whether to apply the service control policy to its designated targets.
+      The default is true . Change this to false to detach the SCP but preserve
+      the list of targets.
+    Default: "true"
+    AllowedValues:
+      - "false"
+      - "true"
+
+  ScpTargetIds:
+    Type: List<String>
+    Description: >-
+      Up to 100 r- root ID strings, ou- organizational unit ID strings, and/or
+      AWS account ID numbers to which the SCP will apply. Separate multiple
+      targets with commas but no spaces. To view the SCP before applying it,
+      leave this empty (the default), or start with EnableScp set to false .
+      Exercise caution when applying this SCP, because it generally does reduce
+      existing permissions.
+    Default: ""
+
+  PlaceholderAdvancedParameters:
+    Type: String
+    Default: ""
+    AllowedValues:
+      - ""
+
+  ExcludeTagKey:
+    Type: String
+    Description: >-
+      IAM principals subject to the SCP are not allowed to remove this tag from
+      RDS/Aurora database instances or database clusters.
+      If the parameter is set in your deployed Step-Stay-Stopped CloudFormation
+      stack, CloudFormation StackSet, //terraform module, or //terraform-multi
+      module, this should match.
+      Otherwise, keep the default, "StayStopped-Exclude".
+      ExcludeTagKey and IncludeTagKey must be different.
+      For tag key rules, see
+      https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Tagging.html#Overview.Tagging.Structure
+    Default: "StayStopped-Exclude"
+
+  IncludeTagKey:
+    Type: String
+    Description: >-
+      IAM principals subject to the SCP are not allowed to add this tag to
+      RDS/Aurora database instances or database clusters.
+      If the parameter is set in your deployed Step-Stay-Stopped CloudFormation
+      stack, CloudFormation StackSet, //terraform module, or //terraform-multi
+      module, this should match.
+      Otherwise, keep the default, "StayStopped-Include".
+      See ExcludeTagKey for other important details.
+    Default: "StayStopped-Include"
+
+  ScpPrincipalCondition:
+    Type: String
+    Description: >-
+      One or more condition expressions determining which roles (or other IAM
+      principals) are not allowed to remove the exclude tag from or add the
+      include tag to RDS/Aurora database instances and database clusters, in
+      AWS accounts subject to the SCP. Separate multiple expressions with
+      commas.
+      The default,
+      '"ArnNotLike": { "aws:PrincipalArn": "arn:aws:iam::*:role/manage-rds" }',
+      means that a tagging request will be denied if it is not  made by the
+      manage-rds role. (Separately, you would have to create the manage-rds
+      role and attach an IAM policy allowing the role to read and change
+      RDS/Aurora database instance and database cluster tags.)
+      "ForAnyValue:StringEquals" is forbidden; to use this condition operator,
+      write a custom policy.
+      For condition operators, see
+      https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html
+      . For condition keys, see
+      https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-keys.html#condition-keys-principal-properties
+    Default: '"ArnNotLike": { "aws:PrincipalArn": "arn:aws:iam::*:role/manage-rds" }'
+    AllowedPattern: '^(?!.*"ForAnyValue:StringEquals").*$'
+    ConstraintDescription: >-
+      "ForAnyValue:StringEquals" is forbidden. To use this condition operator,
+      write a custom policy.
+
+Metadata:
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: For Reference
+        Parameters:
+          - PlaceholderSuggestedStackName
+          - PlaceholderHelp
+      - Label:
+          default: Essential
+        Parameters:
+          - EnableScp
+          - ScpTargetIds
+      - Label:
+          default: Advanced...
+        Parameters:
+          - PlaceholderAdvancedParameters
+      - Label:
+          default: >-
+            Service control policy (protect database tags)
+        Parameters:
+          - ExcludeTagKey
+          - IncludeTagKey
+          - ScpPrincipalCondition
+    ParameterLabels:
+      PlaceholderSuggestedStackName:
+        default: Suggested stack name
+      PlaceholderHelp:
+        default: For help with this stack, see
+      EnableScp:
+        default: Enable SCP?
+      ScpTargetIds:
+        default: SCP root IDs, OU IDs, and/or AWS account ID numbers
+      PlaceholderAdvancedParameters:
+        default: Do not change the parameters below unless necessary!
+      ExcludeTagKey:
+        default: Tag to prevent databases from being stopped (cannot be removed)
+      IncludeTagKey:
+        default: Tag to allow databases to be stopped (cannot be added)
+      ScpPrincipalCondition:
+        default: Condition for roles not allowed to change database tags
+
+Rules:
+
+  IncludeTagKeyExcludeTagKeyDiffer:
+    Assertions:
+      - AssertDescription: >-
+          ExcludeTagKey and IncludeTagKey must be different
+        Assert: !Not [ !Equals [ !Ref ExcludeTagKey, !Ref IncludeTagKey ] ]
+
+  ScpPrincipalConditionNotBlank:
+    Assertions:
+      - AssertDescription: >-
+          ScpPrincipalCondition must not be blank
+        Assert: !Not [ !Equals [ !Ref ScpPrincipalCondition, "" ] ]
+
+Conditions:
+
+  EnableScpTrue: !And
+    - !Equals [ !Ref EnableScp, "true" ]
+    - !Not [ !Equals [ !Join [ "", !Ref ScpTargetIds ], "" ] ]
+
+Resources:
+
+  ScpRdsProtectStayStoppedTags:
+    Type: AWS::Organizations::Policy
+    Properties:
+      Type: SERVICE_CONTROL_POLICY
+      Name: !Sub "RdsProtectTags-${AWS::StackName}"
+      Tags:
+        - Key: StackName  # No automatic CloudFormation tags, as of 2026-03
+          Value: !Ref AWS::StackName
+        - Key: Source
+          Value: "github.com/sqlxpert/step-stay-stopped-aws-rds-aurora"
+        - Key: Rights
+          Value: "GPLv3. Copyright Paul Marcelin."
+      Description: !Sub >-
+        RDS/Aurora database instance or database cluster tags: Matching IAM
+        principals cannot remove '${ExcludeTagKey}' or add '${IncludeTagKey}'.
+        GPLv3, Copyright Paul Marcelin. github.com/sqlxpert
+      TargetIds: !If [ EnableScpTrue, !Ref ScpTargetIds, !Ref AWS::NoValue ]
+      Content: !Sub >-
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Deny",
+              "Action": "rds:RemoveTagsFromResource",
+              "Resource": [
+                "arn:${AWS::Partition}:rds:*:*:db:*",
+                "arn:${AWS::Partition}:rds:*:*:cluster:*"
+              ],
+              "Condition": {
+                "ForAnyValue:StringEquals": {
+                  "aws:TagKeys": "${ExcludeTagKey}"
+                },
+                ${ScpPrincipalCondition}
+              }
+            },
+            {
+              "Effect": "Deny",
+              "Action": "rds:AddTagsToResource",
+              "Resource": [
+                "arn:${AWS::Partition}:rds:*:*:db:*",
+                "arn:${AWS::Partition}:rds:*:*:cluster:*"
+              ],
+              "Condition": {
+                "ForAnyValue:StringEquals": {
+                  "aws:TagKeys": "${IncludeTagKey}"
+                },
+                ${ScpPrincipalCondition}
+              }
+            }
+          ]
+        }
+
+Outputs:
+
+  ScpRdsProtectStayStoppedTagsArn:
+    Description: >-
+      ARN of service control policy protecting RDS/Aurora database stop
+      exclude/include tags
+    Value: !GetAtt ScpRdsProtectStayStoppedTags.Arn
+  ScpRdsProtectStayStoppedTagsId:
+    Description: >-
+      Physical identifier of service control policy
+    Value: !GetAtt ScpRdsProtectStayStoppedTags.Id

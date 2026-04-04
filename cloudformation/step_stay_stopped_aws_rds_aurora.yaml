@@ -56,11 +56,12 @@ Parameters:
     Description: >-
       An RDS database instance or Aurora database cluster with this tag will
       not be stopped.
-      Specify only the tag key; tag values are ignored.
+      Specify only the tag key; tag values are irrelevant.
+      The default is "StayStopped-Exclude".
       If ExcludeTagKey and IncludeTagKey are both blank, the Step Function role
       has permission to stop any database (though the Step Function is only
       triggered for databases that have already been stopped for 7 days).
-      The default is "StayStopped-Exclude".
+      If both are set, they must be different.
       For tag key rules, see
       https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Tagging.html#Overview.Tagging.Structure
     Default: "StayStopped-Exclude"
@@ -71,6 +72,7 @@ Parameters:
       An RDS database instance or Aurora database cluster without this tag will
       not be stopped.
       By default, this is blank and no database tag is required.
+      If you wish to use this feature, "StayStopped-Include" is recommended.
       If a database has both the ExcludeTagKey and the IncludeTagKey, it will
       not be stopped; exclusion wins.
       See ExcludeTagKey for other important details.
@@ -339,6 +341,17 @@ Metadata:
       CloudWatchLogsKmsKey:
         default: KMS encryption key
 
+Rules:
+
+  IncludeTagKeyExcludeTagKeyDiffer:
+    Assertions:
+      - AssertDescription: >-
+          If both are set, ExcludeTagKey and IncludeTagKey must be different
+        Assert: !Or
+          - !Equals [ !Ref ExcludeTagKey, "" ]
+          - !Equals [ !Ref IncludeTagKey, "" ]
+          - !Not [ !Equals [ !Ref ExcludeTagKey, !Ref IncludeTagKey ] ]
+
 Conditions:
 
   EnableTrue: !Equals [ !Ref Enable, "true" ]
@@ -353,10 +366,9 @@ Conditions:
   TestTrue: !Equals [ !Ref Test, "true" ]
 
   SqsKmsKeyBlank: !Equals [ !Ref SqsKmsKey, "" ]
-  SqsKmsKeyCustom:
-    Fn::And:
-      - !Not [ !Condition SqsKmsKeyBlank ]
-      - !Not [ !Equals [ !Ref SqsKmsKey, "alias/aws/sqs" ] ]
+  SqsKmsKeyCustom: !And
+    - !Not [ !Condition SqsKmsKeyBlank ]
+    - !Not [ !Equals [ !Ref SqsKmsKey, "alias/aws/sqs" ] ]
 
   StepFnRoleAttachLocalPolicyNameBlank:
     !Equals [ !Ref StepFnRoleAttachLocalPolicyName, "" ]
@@ -376,7 +388,7 @@ Resources:
         Version: "2012-10-17"
         Statement:
           - Effect: Allow
-            Principal: { Service: events.amazonaws.com }
+            Principal: { Service: !Sub "events.${AWS::URLSuffix}" }
             Action: sts:AssumeRole
       Policies:
 
@@ -389,22 +401,22 @@ Resources:
                 Resource: !GetAtt StepFn.Arn
 
         # https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-key-management.html#send-to-encrypted-queue
-        - Fn::If:
-            - SqsKmsKeyCustom
-            - PolicyName: SqsKmsEncryptNoteComplementsQueuePolicy
-              PolicyDocument:
-                Version: "2012-10-17"
-                Statement:
-                  - Effect: Allow
-                    Action:
-                      - kms:GenerateDataKey
-                      - kms:Decrypt  # To verify a new data key!
-                    Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${SqsKmsKey}"
-                    Condition:
-                      StringEquals:
-                        "kms:ViaService":
-                          !Sub "sqs.${AWS::Region}.amazonaws.com"
-            - !Ref AWS::NoValue
+        - !If
+          - SqsKmsKeyCustom
+          - PolicyName: SqsKmsEncryptNoteComplementsQueuePolicy
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - kms:GenerateDataKey
+                    - kms:Decrypt  # To verify a new data key!
+                  Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${SqsKmsKey}"
+                  Condition:
+                    StringEquals:
+                      "kms:ViaService":
+                        !Sub "sqs.${AWS::Region}.${AWS::URLSuffix}"
+          - !Ref AWS::NoValue
 
   StepFnRole:
     Type: AWS::IAM::Role
@@ -414,17 +426,16 @@ Resources:
         Version: "2012-10-17"
         Statement:
           - Effect: Allow
-            Principal: { Service: states.amazonaws.com }
+            Principal: { Service: !Sub "states.${AWS::URLSuffix}" }
             Action: sts:AssumeRole
             Condition:
               ArnEquals:
                 "aws:SourceArn":
-                  !Sub "arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${AWS::StackName}-StepFn"
-      ManagedPolicyArns:
-        - Fn::If:
-            - StepFnRoleAttachLocalPolicyNameBlank
-            - !Ref AWS::NoValue
-            - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${StepFnRoleAttachLocalPolicyName}"
+                  !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${AWS::StackName}-StepFn"
+      ManagedPolicyArns: !If
+        - StepFnRoleAttachLocalPolicyNameBlank
+        - !Ref AWS::NoValue
+        - [ !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${StepFnRoleAttachLocalPolicyName}" ]
       Policies:
 
         # https://docs.aws.amazon.com/step-functions/latest/dg/cw-logs.html#cloudwatch-iam-policy
@@ -492,7 +503,7 @@ Resources:
         # JSON, because CloudFormation requires literal string keys.
         # !Sub "aws:ResourceTag/${TagKey}": "*"
         # would give an "Unhashable type" error.
-        # Empty "Condition": {} is OK.
+        # Empty "Condition": {"Null": {}} is valid and has no effect.
         - PolicyName: RdsWrite
           PolicyDocument: !Sub
             - >-
@@ -509,7 +520,9 @@ Resources:
                     "arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:cluster:*"
                   ],
                   "Condition": {
+                    "Null": {
               ${TagConditions}
+                    }
                   }
                 }]
               }
@@ -519,61 +532,57 @@ Resources:
                 - - !If
                     - ExcludeTagKeySet
                     - !Sub |-
-                        "StringNotLike": {
-                          "aws:ResourceTag/${ExcludeTagKey}": "*"
-                        }
+                        "aws:ResourceTag/${ExcludeTagKey}": "true"
                     - !Ref AWS::NoValue
                   - !If
                     - IncludeTagKeySet
                     - !Sub |-
-                        "StringLike": {
-                          "aws:ResourceTag/${IncludeTagKey}": "*"
-                        }
+                        "aws:ResourceTag/${IncludeTagKey}": "false"
                     - !Ref AWS::NoValue
 
         # https://docs.aws.amazon.com/step-functions/latest/dg/encryption-at-rest.html#encrypt-logs
-        - Fn::If:
-            - StepFnKmsKeyBlank
-            - !Ref AWS::NoValue
-            - PolicyName: StepFnKmsDecryptForCloudWatchLogsNoteComplementsKeyPolicy
-              PolicyDocument:
-                Version: "2012-10-17"
-                Statement:
-                  - Effect: Allow
-                    Action:
-                      - kms:GenerateDataKey
-                    Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${StepFnKmsKey}"
-                    Condition:
-                      StringEquals:
-                        "kms:EncryptionContext:SourceArn":
-                          !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*"
-                          # No need for StringLike! Per CloudTrail, the literal
-                          # EncryptionContext ends in :*
+        - !If
+          - StepFnKmsKeyBlank
+          - !Ref AWS::NoValue
+          - PolicyName: StepFnKmsDecryptForCloudWatchLogsNoteComplementsKeyPolicy
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - kms:GenerateDataKey
+                  Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${StepFnKmsKey}"
+                  Condition:
+                    StringEquals:
+                      "kms:EncryptionContext:SourceArn":
+                        !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:*"
+                        # No need for ...Like operator! Per CloudTrail, the
+                        # literal EncryptionContext ends in :*
 
         # https://docs.aws.amazon.com/step-functions/latest/dg/encryption-at-rest.html#create-state-machine
-        - Fn::If:
-            - StepFnKmsKeyBlank
-            - !Ref AWS::NoValue
-            - PolicyName: StepFnKmsEncryptDecrypt
-              PolicyDocument:
-                Version: "2012-10-17"
-                Statement:
-                  - Effect: Allow
-                    Action:
-                      - kms:GenerateDataKey
-                      - kms:Decrypt
-                    Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${StepFnKmsKey}"
-                    Condition:
-                      StringEquals:
-                        "kms:EncryptionContext:aws:states:stateMachineArn":
-                          !Sub "arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${AWS::StackName}-StepFn"
-                          # KMS and Step Functions documentation recommends
-                          # String operators.
-                          # https://docs.aws.amazon.com/kms/latest/developerguide/conditions-kms.html#conditions-kms-encryption-context
-                          # https://docs.aws.amazon.com/step-functions/latest/dg/encryption-at-rest.html#create-state-machine
-                          # Documentation for some other services recommends
-                          # Arn operators.
-                          # https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html#cmk-permissions
+        - !If
+          - StepFnKmsKeyBlank
+          - !Ref AWS::NoValue
+          - PolicyName: StepFnKmsEncryptDecrypt
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - kms:GenerateDataKey
+                    - kms:Decrypt
+                  Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${StepFnKmsKey}"
+                  Condition:
+                    StringEquals:
+                      "kms:EncryptionContext:aws:states:stateMachineArn":
+                        !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${AWS::StackName}-StepFn"
+                        # KMS and Step Functions documentation recommends
+                        # String operators.
+                        # https://docs.aws.amazon.com/kms/latest/developerguide/conditions-kms.html#conditions-kms-encryption-context
+                        # https://docs.aws.amazon.com/step-functions/latest/dg/encryption-at-rest.html#create-state-machine
+                        # Documentation for some other services recommends
+                        # Arn operators.
+                        # https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html#cmk-permissions
 
   # https://docs.aws.amazon.com/step-functions/latest/dg/cw-logs.html#cloudwatch-iam-policy
   # https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/AWS-logs-and-resource-policy.html#AWS-logs-infrastructure-CWL
@@ -590,7 +599,7 @@ Resources:
           "Version": "2012-10-17",
           "Statement": [{
             "Effect": "Allow",
-            "Principal": { "Service": "delivery.logs.amazonaws.com" },
+            "Principal": { "Service": "delivery.logs.${AWS::URLSuffix}" },
             "Action": [
               "logs:CreateLogStream",
               "logs:PutLogEvents"
@@ -603,7 +612,7 @@ Resources:
                 "aws:SourceAccount": "${AWS::AccountId}"
               },
               "ArnLike": {
-                "aws:SourceArn": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*"
+                "aws:SourceArn": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:*"
               }
             }
           }]
@@ -638,7 +647,7 @@ Resources:
                 "Sid": "${SourceEventRulesSid}",
                 "Effect": "Allow",
                 "Principal": {
-                  "Service": "events.amazonaws.com"
+                  "Service": "events.${AWS::URLSuffix}"
                 },
                 "Action": "sqs:SendMessage",
                 "Resource": "*",
@@ -769,14 +778,13 @@ Resources:
     Properties:
       DelaySeconds: 0
       SqsManagedSseEnabled: !If [ SqsKmsKeyBlank, true, false ]
-      KmsMasterKeyId:
-        Fn::If:
-          - SqsKmsKeyBlank
-          - !Ref AWS::NoValue
-          - Fn::If:
-              - SqsKmsKeyCustom
-              - !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${SqsKmsKey}"
-              - !Ref SqsKmsKey
+      KmsMasterKeyId: !If
+        - SqsKmsKeyBlank
+        - !Ref AWS::NoValue
+        - !If
+          - SqsKmsKeyCustom
+          - !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${SqsKmsKey}"
+          - !Ref SqsKmsKey
       KmsDataKeyReusePeriodSeconds:
         !If [ SqsKmsKeyBlank, !Ref AWS::NoValue, 86400 ]  # seconds (24 hours)
       MaximumMessageSize: !Ref MaximumMessageSizeBytes
@@ -790,11 +798,10 @@ Resources:
       # https://docs.aws.amazon.com/step-functions/latest/dg/sfn-best-practices.html#bp-cwl
       LogGroupName: !Sub "/aws/vendedlogs/states/${AWS::StackName}-StepFnLogGrp"
       RetentionInDays: !Ref LogRetentionInDays
-      KmsKeyId:
-        Fn::If:
-          - CloudWatchLogsKmsKeyBlank
-          - !Ref AWS::NoValue
-          - !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${CloudWatchLogsKmsKey}"
+      KmsKeyId: !If
+        - CloudWatchLogsKmsKeyBlank
+        - !Ref AWS::NoValue
+        - !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${CloudWatchLogsKmsKey}"
 
   StepFn:
     Type: AWS::StepFunctions::StateMachine
@@ -807,15 +814,12 @@ Resources:
       # allowing for stricter IAM policies, but does complicate updates that
       # require replacement.
       # https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-stepfunctions-statemachine.html#cfn-stepfunctions-statemachine-statemachinename
-      EncryptionConfiguration:
-        Fn::If:
-          - StepFnKmsKeyBlank
-          -
-            Type: AWS_OWNED_KEY
-          -
-            Type: CUSTOMER_MANAGED_KMS_KEY
-            KmsKeyId: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${StepFnKmsKey}"
-            KmsDataKeyReusePeriodSeconds: 900  # Maximum (lowest cost)
+      EncryptionConfiguration: !If
+        - StepFnKmsKeyBlank
+        - Type: AWS_OWNED_KEY
+        - Type: CUSTOMER_MANAGED_KMS_KEY
+          KmsKeyId: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${StepFnKmsKey}"
+          KmsDataKeyReusePeriodSeconds: 900  # Maximum (lowest cost)
       LoggingConfiguration:
         IncludeExecutionData: !Ref IncludeExecutionDataInLog
         Level: !Ref LogLevel
@@ -824,6 +828,15 @@ Resources:
       TracingConfiguration: { Enabled: false }
       RoleArn: !GetAtt StepFnRole.Arn
       StateMachineType: STANDARD
+
+      # The DefinitionSubstitutions property has potential issues for
+      # non-string values, does not handle CloudFormation pseudo parameters,
+      # and is not in the underlying Step Functions API, so it offers no
+      # advantages over CloudFormation's own Fn::Sub .
+      # https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-stepfunctions-statemachine.html#cfn-stepfunctions-statemachine-definitionsubstitutions
+      # https://github.com/aws-cloudformation/aws-cloudformation-resource-providers-stepfunctions/issues/14
+      # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/pseudo-parameter-reference.html#available-pseudo-parameters
+      # https://docs.aws.amazon.com/step-functions/latest/apireference/API_CreateStateMachine.html#API_CreateStateMachine_RequestSyntax
       DefinitionString: !Sub
         - |-
           {
@@ -869,7 +882,7 @@ Resources:
               },
               "StopDBCluster": {
                 "Type": "Task",
-                "Resource": "arn:aws:states:::aws-sdk:rds:stopDBCluster",
+                "Resource": "arn:${AWS::Partition}:states:::aws-sdk:rds:stopDBCluster",
                 "Arguments": "{% {'DbClusterIdentifier': $states.input.SourceIdentifier} %}",
                 "TimeoutSeconds": "{% $Constant.StepFnTaskTimeoutSeconds %}",
                 "Catch": [
@@ -894,7 +907,7 @@ Resources:
               },
               "StopDBInstance": {
                 "Type": "Task",
-                "Resource": "arn:aws:states:::aws-sdk:rds:stopDBInstance",
+                "Resource": "arn:${AWS::Partition}:states:::aws-sdk:rds:stopDBInstance",
                 "Arguments": "{% {'DbInstanceIdentifier': $states.input.SourceIdentifier} %}",
                 "TimeoutSeconds": "{% $Constant.StepFnTaskTimeoutSeconds %}",
                 "Catch": [
@@ -926,7 +939,7 @@ Resources:
               },
               "DescribeDBInstances": {
                 "Type": "Task",
-                "Resource": "arn:aws:states:::aws-sdk:rds:describeDBInstances",
+                "Resource": "arn:${AWS::Partition}:states:::aws-sdk:rds:describeDBInstances",
                 "Arguments": "{% {'DbInstanceIdentifier': $states.input.SourceIdentifier} %}",
                 "TimeoutSeconds": "{% $Constant.StepFnTaskTimeoutSeconds %}",
                 "Catch": [

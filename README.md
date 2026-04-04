@@ -93,7 +93,7 @@ Click to view the simplified flowchart:
 
       Select "Upload a template file", then select "Choose file" and navigate
       to a locally-saved copy of
-      [cloudformation/step_stay_stopped_aws_rds_aurora.yaml](/../../blob/v2.4.0/cloudformation/step_stay_stopped_aws_rds_aurora.yaml?raw=true)
+      [cloudformation/step_stay_stopped_aws_rds_aurora.yaml](/../../blob/v2.4.1/cloudformation/step_stay_stopped_aws_rds_aurora.yaml?raw=true)
       [right-click to save as...].
 
       On the next page, set:
@@ -111,7 +111,7 @@ Click to view the simplified flowchart:
 
       ```terraform
       module "stay_stopped_rds" {
-        source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform?ref=v2.4.0"
+        source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform?ref=v2.4.1"
         # Reference a specific version from github.com/sqlxpert/step-stay-stopped-aws-rds-aurora/releases
         # Check that the release is immutable!
       }
@@ -162,7 +162,7 @@ AWS account. To deploy in multiple regions and/or multiple AWS accounts,
 
       Select "Upload a template file", then select "Choose file" and upload a
       locally-saved copy of
-      [cloudformation/step_stay_stopped_aws_rds_aurora.yaml](/../../blob/v2.4.0/cloudformation/step_stay_stopped_aws_rds_aurora.yaml?raw=true)
+      [cloudformation/step_stay_stopped_aws_rds_aurora.yaml](/../../blob/v2.4.1/cloudformation/step_stay_stopped_aws_rds_aurora.yaml?raw=true)
       [right-click to save as...].
 
       On the next page, set:
@@ -180,7 +180,7 @@ AWS account. To deploy in multiple regions and/or multiple AWS accounts,
 
       ```terraform
       module "stay_stopped_rds_stackset" {
-        source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform-multi?ref=v2.4.0"
+        source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform-multi?ref=v2.4.1"
         # Reference a specific version from github.com/sqlxpert/step-stay-stopped-aws-rds-aurora/releases
         # Check that the release is immutable!
 
@@ -215,7 +215,7 @@ resemble:
 
 ```terraform
 module "stay_stopped_rds" {
-  source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform?ref=v2.4.0"
+  source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform?ref=v2.4.1"
   # Reference a specific version from github.com/sqlxpert/step-stay-stopped-aws-rds-aurora/releases
   # Check that the release is immutable!
 
@@ -246,17 +246,17 @@ stack. (This is done for you if you use Terraform at Step&nbsp;3 of
 [Get Started](#get-started).)
 
 First, create the `StepStayStoppedRdsAuroraPrereq` stack from
-[cloudformation/step_stay_stopped_aws_rds_aurora_prereq.yaml](/../../blob/v2.4.0/cloudformation/step_stay_stopped_aws_rds_aurora_prereq.yaml?raw=true)&nbsp;.
+[cloudformation/step_stay_stopped_aws_rds_aurora_prereq.yaml](/../../blob/v2.4.1/cloudformation/step_stay_stopped_aws_rds_aurora_prereq.yaml?raw=true)&nbsp;.
 
 Under "Additional settings" &rarr; "Stack policy - optional", you can "Upload a
 file" and select a locally-saved copy of
-[cloudformation/step_stay_stopped_aws_rds_aurora_prereq_policy.json](/../../blob/v2.4.0/cloudformation/step_stay_stopped_aws_rds_aurora_prereq_policy.json?raw=true)&nbsp;.
+[cloudformation/step_stay_stopped_aws_rds_aurora_prereq_policy.json](/../../blob/v2.4.1/cloudformation/step_stay_stopped_aws_rds_aurora_prereq_policy.json?raw=true)&nbsp;.
 The stack policy prevents inadvertent replacement or deletion of the deployment
 role during stack updates, but it cannot prevent deletion of the entire
 `StepStayStoppedRdsAuroraPrereq` stack.
 
 Next, when you create the `StepStayStoppedRdsAurora` stack from
-[cloudformation/step_stay_stopped_aws_rds_aurora.yaml](/../../blob/v2.4.0/cloudformation/step_stay_stopped_aws_rds_aurora.yaml?raw=true)&nbsp;,
+[cloudformation/step_stay_stopped_aws_rds_aurora.yaml](/../../blob/v2.4.1/cloudformation/step_stay_stopped_aws_rds_aurora.yaml?raw=true)&nbsp;,
 set "Permissions - optional" &rarr; "IAM role - optional" to
 `StepStayStoppedRdsAuroraPrereq-DeploymentRole`&nbsp;. If your own privileges
 are limited, you might need permission to pass the deployment role to
@@ -434,13 +434,13 @@ inclusion tag.
 In your AWS Organizations management account, in the region where you manage
 infrastructure-as-code templates for non-regional resources, create a
 CloudFormation stack from
-[cloudformation/step_stay_stopped_aws_rds_aurora.yaml](/../../blob/v2.4.0/cloudformation/scp_rds_db_protect_step_stay_stopped_tags.yaml?raw=true)&nbsp;.
+[cloudformation/step_stay_stopped_aws_rds_aurora.yaml](/../../blob/v2.4.1/cloudformation/scp_rds_protect_stay_stopped_tags.yaml?raw=true)&nbsp;.
 
 Or, reference the equivalent Terraform module:
 
 ```terraform
 module "stay_stopped_rds_scp" {
-  source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform-scp?ref=v2.4.0"
+  source = "git::https://github.com/sqlxpert/step-stay-stopped-aws-rds-aurora.git//terraform-scp?ref=v2.4.1"
   # Reference a specific version from github.com/sqlxpert/step-stay-stopped-aws-rds-aurora/releases
   # Check that the release is immutable!
 
